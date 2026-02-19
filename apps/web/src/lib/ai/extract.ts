@@ -45,7 +45,8 @@ const normalizeDescription = (value: string) => {
 const buildTitle = (text: string, parsedItems: { description: string }[]) => {
   const directTitle = text.match(/(?:por|de)\s+([^,\n]+?)(?:,|\b\d+\s*(?:unidad|x)|$)/i)?.[1];
   const fromText = directTitle ? normalizeDescription(directTitle) : '';
-  if (fromText && fromText !== 'Servicio') return `Cotización de ${fromText}`;
+  const containsAmbiguousWords = /\d|precio|cada\s+uno|cada\s+una/i.test(fromText);
+  if (fromText && fromText !== 'Servicio' && !containsAmbiguousWords) return `Cotización de ${fromText}`;
 
   if (parsedItems.length > 0) {
     return `Cotización de ${normalizeDescription(parsedItems[0].description)}`;
@@ -97,7 +98,8 @@ function parseItems(text: string, fallbackDescription: string) {
     /(\d+)\s*(?:unidades?|uds?|x)\s*(?:de)?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:a|por)\s*(\d+(?:\.\d+)?)(?:,|$)/gi,
     /([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:x|por)\s*(\d+)\s*(?:unidades?|uds?)(?:\s*(?:a|por)\s*(\d+(?:\.\d+)?))?/gi,
     /(?:por|de)\s*(\d+(?:\.\d+)?)\s*(?:para\s+(?:un|una))\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]+?)(?:,|$)/gi,
-    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s*(\d+(?:\.\d+)?)(?:,|$)/gi
+    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s*(\d+(?:\.\d+)?)(?:,|$)/gi,
+    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s+un\s+precio\s*(?:de\s*)?(\d+(?:\.\d+)?)(?:\s*cada\s*(?:uno|una))?(?:,|$)/gi
   ];
 
   const directItems: { description: string; qty: number; unitPrice: number }[] = [];
@@ -120,6 +122,10 @@ function parseItems(text: string, fallbackDescription: string) {
   }
 
   for (const match of workingText.matchAll(directPatterns[3])) {
+    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: Number(match[3]) });
+  }
+
+  for (const match of workingText.matchAll(directPatterns[4])) {
     directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: Number(match[3]) });
   }
 
