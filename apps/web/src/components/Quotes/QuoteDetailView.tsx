@@ -164,7 +164,7 @@ export function QuoteDetailView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold">Detalle de cotización</h2>
-          <p className="text-sm text-slate-500">Formato profesional para exportar/guardar como PDF desde el diálogo de impresión.</p>
+          <p className="text-sm text-slate-500">Plantilla estandarizada de cotización con diseño UI/UX profesional para exportar a PDF.</p>
         </div>
         <button className="rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700" onClick={downloadPdf}>
           Descargar PDF

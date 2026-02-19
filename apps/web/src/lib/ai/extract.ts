@@ -14,7 +14,9 @@ const TITLE_STOP_WORDS = new Set([
   'la',
   'el',
   'los',
-  'las'
+  'las',
+  'quiero',
+  'necesito'
 ]);
 
 const cleanText = (value: string) =>
@@ -92,6 +94,15 @@ const normalizeDescription = (value: string) => {
   return normalized.length > 2 ? normalized : 'Servicio';
 };
 
+
+const normalizeCustomer = (value?: string) => {
+  if (!value) return undefined;
+  const cleaned = normalizeDescription(value);
+  if (!cleaned || /^(?:una|un)\s+(?:cotizaci[oó]n|factura|presupuesto)$/i.test(cleaned)) return undefined;
+  if (/(?:cotizaci[oó]n|factura|presupuesto)/i.test(cleaned)) return undefined;
+  return cleaned;
+};
+
 const buildTitle = (text: string, parsedItems: { description: string }[]) => {
   const directTitle = text.match(/(?:por|de)\s+([^,\n]+?)(?:,|\b\d+\s*(?:unidad|x)|$)/i)?.[1];
   const fromText = directTitle ? normalizeDescription(directTitle) : '';
@@ -125,9 +136,10 @@ export function extractEntities(intent: Intent, text: string) {
   }
 
   if (intent === 'CREATE_QUOTE') {
-    const customer =
+    const customer = normalizeCustomer(
       normalizedText.match(/(?:para|cliente)\s+"?([A-Za-zÁÉÍÓÚÑáéíóúñ\s0-9]+?)"?(?:\spor|\sde|,|$)/i)?.[1]?.trim() ||
-      normalizedText.match(/cliente\s+#?(\d+)/i)?.[1]?.trim();
+        normalizedText.match(/cliente\s+#?(\d+)/i)?.[1]?.trim()
+    );
     const customerEmail = normalizedText.match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/)?.[0];
     const customerRnc = normalizeRnc(normalizedText.match(/(?:rnc\s*)?(\d{3}[-\s]?\d{7}[-\s]?\d)/i)?.[1]);
     const customerPhone = normalizePhone(normalizedText.match(/(?:\+?1[-\s]?)?\(?\d{3}\)?[-\s]?\d{3}[-\s]?\d{4}/)?.[0]);
@@ -152,7 +164,7 @@ export function extractEntities(intent: Intent, text: string) {
 function parseItems(text: string, fallbackDescription: string) {
   const normalizedFallback = normalizeDescription(fallbackDescription);
   const workingText = cleanText(text).replace(/\s+y\s+/gi, ', ');
-  const priceSuffix = '(?:\s*(?:usd|us\$|dolares?|dólares?|rd\$|dop|eur|euros?))?(?:\s*(?:c\/u|cada\s*(?:uno|una|unidad)|por\s*unidad|unidad(?:es)?))?';
+  const priceSuffix = '(?:\\s*(?:usd|us\\$|dolares?|dólares?|rd\\$|dop|eur|euros?))?(?:\\s*(?:c\\/u|cada\\s*(?:uno|una|unidad)|por\\s*unidad|unidad(?:es)?))?';
   const directPatterns = [
     new RegExp(
       `(\\d+)\\s*(?:unidades?|uds?|x)\\s*(?:de)?\\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s*(?:a|por)\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`,
@@ -163,6 +175,10 @@ function parseItems(text: string, fallbackDescription: string) {
     new RegExp(`(?:de\\s+)?(\\d+)\\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s+a\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`, 'gi'),
     new RegExp(
       `(\\d+)\\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s+a\\s+un\\s+precio\\s*(?:de\\s*)?(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`,
+      'gi'
+    ),
+    new RegExp(
+      `(?:quiero\\s+)?(\\d+)\\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s+a\\s+un\\s+precio\\s+de\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?=\\s+(?:para|en|con)\\b|,|$)`,
       'gi'
     )
   ];
@@ -194,6 +210,10 @@ function parseItems(text: string, fallbackDescription: string) {
     directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: parseNumber(match[3]) });
   }
 
+  for (const match of workingText.matchAll(directPatterns[5])) {
+    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: parseNumber(match[3]) });
+  }
+
   if (directItems.length > 0) {
     return Array.from(new Map(directItems.map((item) => [`${item.description}-${item.qty}-${item.unitPrice}`, item])).values());
   }
@@ -214,6 +234,7 @@ function parseItems(text: string, fallbackDescription: string) {
           .replace(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?\d+/gi, ' ')
           .replace(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?[\d.,]+(?:\s*(?:usd|us\$|dolares?|dólares?|rd\$|dop|eur|euros?))?(?:\s*(?:c\/u|cada\s*(?:uno|una|unidad)|por\s*unidad|unidad(?:es)?))?/gi, ' ')
           .replace(/(?:x)\s*\d+/gi, ' ')
+          .replace(/^(?:quiero|necesito)\s+/gi, ' ')
     );
 
     if (!Number.isFinite(unitPrice) || unitPrice < 0.01 || qty < 1) continue;
