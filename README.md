@@ -1,3 +1,5 @@
+<img width="1875" height="1003" alt="image" src="https://github.com/user-attachments/assets/158420dc-49c0-4f89-81f1-b987ef0d7b04" />
+
 # QuickQuote Agent Demo
 
 QuickQuote Agent Demo is a public monorepo demo of a small SaaS-style quoting system with a lightweight client-side AI agent. The app lets users manage customers, create quotes, and run Spanish natural-language commands that are interpreted in-browser using Transformers.js.
