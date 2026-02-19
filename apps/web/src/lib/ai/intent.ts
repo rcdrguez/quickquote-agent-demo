@@ -30,22 +30,33 @@ async function embed(text: string) {
   return Array.from(out.data as Float32Array);
 }
 
+function heuristicScore(intent: Intent, lowered: string) {
+  const wantsList = /(lista|listar|mostrar|ver|consulta)/i.test(lowered);
+  const mentionsQuote = /(cotiz|factura|presupuesto)/i.test(lowered);
+  const mentionsCustomer = /cliente/i.test(lowered);
+  const wantsCreate = /(crear|genera|hacer|emitir|registrar|agregar)/i.test(lowered);
+
+  if (intent === 'LIST_QUOTES') return wantsList && mentionsQuote ? 0.2 : 0;
+  if (intent === 'CREATE_QUOTE') return wantsCreate && mentionsQuote ? 0.2 : 0;
+  if (intent === 'LIST_CUSTOMERS') return wantsList && mentionsCustomer ? 0.2 : 0;
+  if (intent === 'CREATE_CUSTOMER') return wantsCreate && mentionsCustomer ? 0.2 : 0;
+  return 0;
+}
+
+function fallbackIntent(lowered: string): Intent {
+  if (/(cotiz|factura|presupuesto)/i.test(lowered)) {
+    return /(lista|mostrar|ver|consulta)/i.test(lowered) ? 'LIST_QUOTES' : 'CREATE_QUOTE';
+  }
+
+  if (/cliente/i.test(lowered)) {
+    return /(lista|mostrar|ver|consulta)/i.test(lowered) ? 'LIST_CUSTOMERS' : 'CREATE_CUSTOMER';
+  }
+
+  return 'LIST_CUSTOMERS';
+}
+
 export async function detectIntent(input: string): Promise<{ intent: Intent; backend: 'webgpu' | 'wasm' | 'unknown' }> {
   const lowered = input.toLowerCase();
-
-  if (/(crear|genera|hacer|emitir).*(cotiz|factura|presupuesto)/i.test(lowered) || /(cotiz|factura|presupuesto)/i.test(lowered)) {
-    return {
-      intent: /(lista|mostrar|ver|consulta)/i.test(lowered) ? 'LIST_QUOTES' : 'CREATE_QUOTE',
-      backend: 'unknown'
-    };
-  }
-
-  if (/(crear|registrar|agregar).*(cliente)/i.test(lowered) || /cliente/i.test(lowered)) {
-    return {
-      intent: /(lista|mostrar|ver|consulta)/i.test(lowered) ? 'LIST_CUSTOMERS' : 'CREATE_CUSTOMER',
-      backend: 'unknown'
-    };
-  }
 
   try {
     const inputVec = await embed(input);
@@ -54,7 +65,9 @@ export async function detectIntent(input: string): Promise<{ intent: Intent; bac
 
     for (const [intent, sample] of Object.entries(intentExamples) as [Intent, string][]) {
       const sampleVec = await embed(sample);
-      const score = cosine(inputVec, sampleVec);
+      const semanticScore = cosine(inputVec, sampleVec);
+      const score = semanticScore + heuristicScore(intent, lowered);
+
       if (score > bestScore) {
         bestScore = score;
         bestIntent = intent;
@@ -64,8 +77,6 @@ export async function detectIntent(input: string): Promise<{ intent: Intent; bac
     const backend = (navigator as any).gpu ? 'webgpu' : 'wasm';
     return { intent: bestIntent, backend };
   } catch {
-    if (lowered.includes('cotiz')) return { intent: lowered.includes('lista') ? 'LIST_QUOTES' : 'CREATE_QUOTE', backend: 'unknown' };
-    if (lowered.includes('cliente')) return { intent: lowered.includes('lista') ? 'LIST_CUSTOMERS' : 'CREATE_CUSTOMER', backend: 'unknown' };
-    return { intent: 'LIST_CUSTOMERS', backend: 'unknown' };
+    return { intent: fallbackIntent(lowered), backend: 'unknown' };
   }
 }

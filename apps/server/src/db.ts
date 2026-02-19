@@ -1,11 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import sqlite3 from 'sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 
-const DATA_DIR = path.resolve(process.cwd(), 'apps/server/data');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const SERVER_ROOT = path.resolve(__dirname, '..');
+const DATA_DIR = path.join(SERVER_ROOT, 'data');
 const DB_PATH = path.join(DATA_DIR, 'quickquote.db');
 
+fs.mkdirSync(DATA_DIR, { recursive: true });
 export const db = new sqlite3.Database(DB_PATH);
 
 export const run = (sql: string, params: unknown[] = []) =>
