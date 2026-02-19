@@ -1,4 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const DEFAULT_API_URL = import.meta.env.PROD
+  ? 'https://quickquote-agent-demo-server.onrender.com'
+  : 'http://localhost:8787';
+const API_URL = (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {

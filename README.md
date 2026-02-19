@@ -58,11 +58,12 @@ npm run dev
 
 ### Web (`apps/web`)
 
-- `VITE_API_URL` (default `http://localhost:8787`)
+- `VITE_API_URL` (default `http://localhost:8787` in dev, `https://quickquote-agent-demo-server.onrender.com` in production builds)
 
 ### Server (`apps/server`)
 
 - `PORT` (default `8787`)
+- `CORS_ORIGINS` (comma-separated list, defaults to `http://localhost:5173,https://quickquote-agent-demo-web.vercel.app`)
 
 ## Deployment
 

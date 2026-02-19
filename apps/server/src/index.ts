@@ -7,13 +7,28 @@ import { addServerLog } from './logs.js';
 
 const PORT = Number(process.env.PORT || 8787);
 
+const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173', 'https://quickquote-agent-demo-web.vercel.app'];
+
+function getAllowedOrigins() {
+  const envOrigins = process.env.CORS_ORIGINS?.split(',').map((origin) => origin.trim()).filter(Boolean);
+  return envOrigins?.length ? envOrigins : DEFAULT_ALLOWED_ORIGINS;
+}
+
 async function bootstrap() {
   await initDb();
 
   const app = express();
+  const allowedOrigins = getAllowedOrigins();
   app.use(
     cors({
-      origin: ['http://localhost:5173'],
+      origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
       credentials: false
     })
   );
