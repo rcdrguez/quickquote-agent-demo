@@ -17,6 +17,8 @@ const smartPromptSuggestions = [
   'Crear cotización en USD para [NOMBRE] por consultoría, 3 unidades a 150'
 ];
 
+const VOICE_SILENCE_TIMEOUT_MS = 3200;
+
 type SpeechRecognitionCtor = new () => {
   continuous: boolean;
   interimResults: boolean;
@@ -85,7 +87,7 @@ export function AgentDemoView() {
     clearSilenceTimer();
     silenceTimerRef.current = window.setTimeout(() => {
       recognitionRef.current?.stop();
-    }, 1400);
+    }, VOICE_SILENCE_TIMEOUT_MS);
   };
 
   const toggleVoiceInput = () => {

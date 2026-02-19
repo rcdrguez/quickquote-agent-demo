@@ -29,130 +29,83 @@ interface Customer {
 const formatMoney = (currency: string, amount: number) =>
   new Intl.NumberFormat('es-DO', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount);
 
-const sanitizePdfText = (value: string) =>
+const escapeHtml = (value: string) =>
   value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[“”«»]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/[–—]/g, '-')
-    .replace(/[^\x20-\x7E]/g, ' ');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
-const escapePdfText = (value: string) => sanitizePdfText(value).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-
-const pdfText = (x: number, y: number, size: number, value: string) => `BT /F1 ${size} Tf ${x} ${y} Td (${escapePdfText(value)}) Tj ET`;
-
-const wrapPdfText = (value: string, maxChars: number) => {
-  const words = sanitizePdfText(value).split(/\s+/).filter(Boolean);
-  if (words.length === 0) return [''];
-
-  const lines: string[] = [];
-  let line = '';
-
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (candidate.length <= maxChars) {
-      line = candidate;
-      continue;
-    }
-
-    if (line) lines.push(line);
-    line = word;
-  }
-
-  if (line) lines.push(line);
-  return lines;
-};
-
-const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: string) => {
+const buildPrintableQuoteHtml = (quote: Quote, customerName: string, sourceLabel: string) => {
   const createdAt = new Date(quote.createdAt).toLocaleString('es-DO');
-  const commands: string[] = [
-    '0.1 0.15 0.35 rg',
-    '40 730 532 52 re f',
-    '1 1 1 rg',
-    pdfText(54, 760, 18, 'QuickQuote'),
-    pdfText(54, 742, 10, 'Cotizacion comercial profesional'),
-    '0.93 0.96 1 rg',
-    '40 648 532 68 re f',
-    '0.18 0.22 0.3 rg',
-    pdfText(54, 700, 11, `Documento: ${quote.title}`),
-    pdfText(54, 684, 10, `Cliente: ${customerName}`),
-    pdfText(54, 668, 10, `Fecha de emision: ${createdAt}`),
-    pdfText(330, 684, 10, `Canal: ${sourceLabel}`),
-    pdfText(330, 668, 10, `Moneda: ${quote.currency}`),
-    '0.2 0.24 0.34 rg',
-    '40 626 532 20 re f',
-    '1 1 1 rg',
-    pdfText(54, 632, 9, 'Descripcion'),
-    pdfText(370, 632, 9, 'Cant.'),
-    pdfText(430, 632, 9, 'Precio unitario'),
-    pdfText(514, 632, 9, 'Total'),
-    '0 0 0 rg'
-  ];
+  const rows = quote.items
+    .map(
+      (item) => `
+      <tr>
+        <td>${escapeHtml(item.description)}</td>
+        <td class="text-right">${item.qty}</td>
+        <td class="text-right">${escapeHtml(formatMoney(quote.currency, item.unitPrice))}</td>
+        <td class="text-right">${escapeHtml(formatMoney(quote.currency, item.qty * item.unitPrice))}</td>
+      </tr>`
+    )
+    .join('');
 
-  let currentY = 612;
-  quote.items.forEach((item, index) => {
-    const lines = wrapPdfText(item.description, 48);
-    const rowHeight = Math.max(20, lines.length * 12);
-    const lineTotal = item.qty * item.unitPrice;
+  return `<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cotización ${escapeHtml(quote.title)}</title>
+    <style>
+      @page { size: A4; margin: 20mm; }
+      * { box-sizing: border-box; }
+      body { font-family: Inter, Segoe UI, Arial, sans-serif; color: #0f172a; }
+      .header { background: linear-gradient(135deg, #1e293b, #1d4ed8); color: white; border-radius: 14px; padding: 18px 20px; }
+      .title { margin: 8px 0 0; font-size: 24px; }
+      .meta { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .meta-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+      .meta-label { font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: .07em; margin-bottom: 4px; }
+      table { width: 100%; margin-top: 16px; border-collapse: collapse; }
+      thead { background: #eff6ff; }
+      th, td { border: 1px solid #dbeafe; padding: 10px 12px; font-size: 13px; }
+      th { text-align: left; color: #1e3a8a; }
+      .text-right { text-align: right; }
+      .totals { margin-top: 16px; margin-left: auto; width: 300px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
+      .row { display: flex; justify-content: space-between; padding: 3px 0; }
+      .row.total { margin-top: 6px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 18px; font-weight: 700; }
+      .footnote { margin-top: 28px; font-size: 12px; color: #64748b; }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div>QuickQuote · Documento comercial</div>
+      <h1 class="title">${escapeHtml(quote.title)}</h1>
+    </header>
 
-    if (index % 2 === 0) {
-      commands.push('0.98 0.99 1 rg');
-      commands.push(`40 ${currentY - rowHeight + 4} 532 ${rowHeight} re f`);
-      commands.push('0 0 0 rg');
-    }
+    <section class="meta">
+      <div class="meta-card"><div class="meta-label">Cliente</div><strong>${escapeHtml(customerName)}</strong></div>
+      <div class="meta-card"><div class="meta-label">Fecha de emisión</div><strong>${escapeHtml(createdAt)}</strong></div>
+      <div class="meta-card"><div class="meta-label">Moneda</div><strong>${escapeHtml(quote.currency)}</strong></div>
+      <div class="meta-card"><div class="meta-label">Canal</div><strong>${escapeHtml(sourceLabel)}</strong></div>
+    </section>
 
-    lines.forEach((line, lineIndex) => {
-      commands.push(pdfText(54, currentY - lineIndex * 11, 9, line));
-    });
+    <table>
+      <thead>
+        <tr><th>Descripción</th><th class="text-right">Cantidad</th><th class="text-right">Precio unitario</th><th class="text-right">Total</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
 
-    commands.push(pdfText(372, currentY, 9, String(item.qty)));
-    commands.push(pdfText(430, currentY, 9, formatMoney(quote.currency, item.unitPrice)));
-    commands.push(pdfText(514, currentY, 9, formatMoney(quote.currency, lineTotal)));
-    currentY -= rowHeight;
-  });
+    <aside class="totals">
+      <div class="row"><span>Subtotal</span><strong>${escapeHtml(formatMoney(quote.currency, quote.subtotal))}</strong></div>
+      <div class="row"><span>ITBIS (18%)</span><strong>${escapeHtml(formatMoney(quote.currency, quote.tax))}</strong></div>
+      <div class="row total"><span>Total</span><strong>${escapeHtml(formatMoney(quote.currency, quote.total))}</strong></div>
+    </aside>
 
-  commands.push(
-    '0.2 0.23 0.3 RG',
-    `40 ${currentY - 16} 532 0.8 re S`,
-    pdfText(360, currentY - 34, 10, `Subtotal: ${formatMoney(quote.currency, quote.subtotal)}`),
-    pdfText(360, currentY - 50, 10, `ITBIS (18%): ${formatMoney(quote.currency, quote.tax)}`),
-    pdfText(360, currentY - 72, 12, `TOTAL: ${formatMoney(quote.currency, quote.total)}`),
-    pdfText(54, 52, 9, 'Gracias por su confianza. Esta cotizacion tiene validez de 15 dias.')
-  );
-
-  const content = commands.join('\n');
-
-  const info = `6 0 obj\n<< /Title (${escapePdfText(`Cotizacion ${quote.title}`)}) /Author (${escapePdfText(
-    sourceLabel
-  )}) /Creator (QuickQuote Agent Demo) /Producer (QuickQuote PDF UX Edition) /Subject (Cotizacion comercial profesional) >>\nendobj`;
-
-  const objects = [
-    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj',
-    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj',
-    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj',
-    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj',
-    `5 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj`,
-    info
-  ];
-
-  let offset = 9;
-  const xref = ['0000000000 65535 f '];
-  const body = objects
-    .map((object) => {
-      const currentOffset = offset;
-      offset += object.length + 1;
-      xref.push(`${currentOffset.toString().padStart(10, '0')} 00000 n `);
-      return object;
-    })
-    .join('\n');
-
-  const xrefOffset = offset;
-  const trailer = `xref\n0 ${objects.length + 1}\n${xref.join('\n')}\ntrailer\n<< /Size ${
-    objects.length + 1
-  } /Root 1 0 R /Info 6 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-  return `%PDF-1.4\n${body}\n${trailer}`;
+    <p class="footnote">Gracias por su confianza. Esta cotización tiene validez de 15 días.</p>
+    <script>window.onload = () => { window.print(); };</script>
+  </body>
+</html>`;
 };
 
 export function QuoteDetailView() {
@@ -188,16 +141,16 @@ export function QuoteDetailView() {
   const downloadPdf = () => {
     if (!quote) return;
 
-    const pdfContent = buildProfessionalPdf(quote, customerName, sourceLabel);
-    const blob = new Blob([pdfContent], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
+    const printableHtml = buildPrintableQuoteHtml(quote, customerName, sourceLabel);
+    const printWindow = window.open('', `quote-print-${quote.id}`, 'width=960,height=1200');
+    if (!printWindow) {
+      setError('No se pudo abrir la vista de impresión. Revisa el bloqueador de popups.');
+      return;
+    }
 
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `cotizacion-${quote.id}.pdf`;
-    link.click();
-
-    URL.revokeObjectURL(url);
+    printWindow.document.open();
+    printWindow.document.write(printableHtml);
+    printWindow.document.close();
   };
 
   if (error) {
@@ -211,7 +164,7 @@ export function QuoteDetailView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold">Detalle de cotización</h2>
-          <p className="text-sm text-slate-500">Diseño premium con PDF estable para caracteres especiales.</p>
+          <p className="text-sm text-slate-500">Formato profesional para exportar/guardar como PDF desde el diálogo de impresión.</p>
         </div>
         <button className="rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700" onClick={downloadPdf}>
           Descargar PDF
