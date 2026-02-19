@@ -152,12 +152,19 @@ export function extractEntities(intent: Intent, text: string) {
 function parseItems(text: string, fallbackDescription: string) {
   const normalizedFallback = normalizeDescription(fallbackDescription);
   const workingText = cleanText(text).replace(/\s+y\s+/gi, ', ');
+  const priceSuffix = '(?:\s*(?:usd|us\$|dolares?|dólares?|rd\$|dop|eur|euros?))?(?:\s*(?:c\/u|cada\s*(?:uno|una|unidad)|por\s*unidad|unidad(?:es)?))?';
   const directPatterns = [
-    /(\d+)\s*(?:unidades?|uds?|x)\s*(?:de)?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:a|por)\s*(\d+(?:[\.,]\d+)?)(?:,|$)/gi,
+    new RegExp(
+      `(\\d+)\\s*(?:unidades?|uds?|x)\\s*(?:de)?\\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s*(?:a|por)\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`,
+      'gi'
+    ),
     /([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:x|por)\s*(\d+)\s*(?:unidades?|uds?)(?:\s*(?:a|por)\s*(\d+(?:[\.,]\d+)?))?/gi,
     /(?:por|de)\s*(\d+(?:[\.,]\d+)?)\s*(?:para\s+(?:un|una))\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]+?)(?:,|$)/gi,
-    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s*(\d+(?:[\.,]\d+)?)(?:,|$)/gi,
-    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s+un\s+precio\s*(?:de\s*)?(\d+(?:[\.,]\d+)?)(?:\s*cada\s*(?:uno|una))?(?:,|$)/gi
+    new RegExp(`(?:de\\s+)?(\\d+)\\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s+a\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`, 'gi'),
+    new RegExp(
+      `(\\d+)\\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s+a\\s+un\\s+precio\\s*(?:de\\s*)?(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`,
+      'gi'
+    )
   ];
 
   const directItems: { description: string; qty: number; unitPrice: number }[] = [];
@@ -195,13 +202,18 @@ function parseItems(text: string, fallbackDescription: string) {
   const segments = workingText.split(/[,;\n]/).map((segment) => segment.trim());
 
   for (const segment of segments) {
-    const qty = Number(segment.match(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?(\d+)/i)?.[1] ?? 1);
-    const unitPrice = parseNumber(segment.match(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?([\d.,]+)/i)?.[1] ?? '');
+    const inlineItemMatch = segment.match(
+      /(?:de\s+)?(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+(?:a|por)\s*([\d.,]+)/i
+    );
+    const qty = Number(inlineItemMatch?.[1] ?? segment.match(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?(\d+)/i)?.[1] ?? 1);
+    const unitPrice = parseNumber(inlineItemMatch?.[3] ?? segment.match(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?([\d.,]+)/i)?.[1] ?? '');
     const description = normalizeDescription(
-      segment
-        .replace(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?\d+/gi, ' ')
-        .replace(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?[\d.,]+/gi, ' ')
-        .replace(/(?:x)\s*\d+/gi, ' ')
+      inlineItemMatch?.[2] ??
+        segment
+          .replace(/^(?:crear|crea|generar|genera|hacer|haz|emitir|registrar)\s+(?:una\s+)?(?:cotizaci[oó]n|factura|presupuesto)\s+para\s+[A-Za-zÁÉÍÓÚÑáéíóúñ\s]+/gi, ' ')
+          .replace(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?\d+/gi, ' ')
+          .replace(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?[\d.,]+(?:\s*(?:usd|us\$|dolares?|dólares?|rd\$|dop|eur|euros?))?(?:\s*(?:c\/u|cada\s*(?:uno|una|unidad)|por\s*unidad|unidad(?:es)?))?/gi, ' ')
+          .replace(/(?:x)\s*\d+/gi, ' ')
     );
 
     if (!Number.isFinite(unitPrice) || unitPrice < 0.01 || qty < 1) continue;
