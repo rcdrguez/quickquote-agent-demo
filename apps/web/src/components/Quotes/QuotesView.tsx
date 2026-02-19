@@ -18,6 +18,7 @@ interface Quote {
   customerId: string;
   title: string;
   currency: string;
+  createdBy: 'human' | 'ai_agent';
   total: number;
   createdAt: string;
 }
@@ -35,6 +36,7 @@ export function QuotesView() {
     customerId: '',
     title: '',
     currency: 'DOP',
+    createdBy: 'human' as 'human' | 'ai_agent',
     items: [emptyItem] as QuoteItemInput[]
   });
 
@@ -114,6 +116,7 @@ export function QuotesView() {
         customerId: form.customerId,
         title: form.title.trim(),
         currency: form.currency,
+        createdBy: form.createdBy,
         items: form.items.map((item) => ({
           description: item.description.trim(),
           qty: Number(item.qty),
@@ -121,7 +124,7 @@ export function QuotesView() {
         }))
       });
 
-      setForm({ customerId: '', title: '', currency: 'DOP', items: [emptyItem] });
+      setForm({ customerId: '', title: '', currency: 'DOP', createdBy: 'human', items: [emptyItem] });
       setSuccess('Cotización creada correctamente.');
       await load();
     } catch (createError) {
@@ -149,7 +152,7 @@ export function QuotesView() {
             <label className="space-y-1 text-sm">
               <span className="font-medium">Cliente</span>
               <select
-                className="w-full rounded-lg border p-2.5 bg-transparent"
+                className="w-full rounded-lg border border-slate-300 p-2.5 bg-white/70 backdrop-blur dark:border-slate-700 dark:bg-slate-900"
                 value={form.customerId}
                 onChange={(event) => setForm((previous) => ({ ...previous, customerId: event.target.value }))}
               >
@@ -165,7 +168,7 @@ export function QuotesView() {
             <label className="space-y-1 text-sm">
               <span className="font-medium">Moneda</span>
               <select
-                className="w-full rounded-lg border p-2.5 bg-transparent"
+                className="w-full rounded-lg border border-slate-300 p-2.5 bg-white/70 backdrop-blur dark:border-slate-700 dark:bg-slate-900"
                 value={form.currency}
                 onChange={(event) => setForm((previous) => ({ ...previous, currency: event.target.value }))}
               >
@@ -177,11 +180,23 @@ export function QuotesView() {
             <label className="space-y-1 text-sm md:col-span-2">
               <span className="font-medium">Título</span>
               <input
-                className="w-full rounded-lg border p-2.5 bg-transparent"
+                className="w-full rounded-lg border border-slate-300 p-2.5 bg-white/70 backdrop-blur dark:border-slate-700 dark:bg-slate-900"
                 placeholder="Ej: Cotización diseño y desarrollo web"
                 value={form.title}
                 onChange={(event) => setForm((previous) => ({ ...previous, title: event.target.value }))}
               />
+            </label>
+
+            <label className="space-y-1 text-sm md:col-span-2">
+              <span className="font-medium">Creado por</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 p-2.5 bg-white/70 backdrop-blur dark:border-slate-700 dark:bg-slate-900"
+                value={form.createdBy}
+                onChange={(event) => setForm((previous) => ({ ...previous, createdBy: event.target.value as 'human' | 'ai_agent' }))}
+              >
+                <option value="human">Persona (manual)</option>
+                <option value="ai_agent">Agente de IA asistido</option>
+              </select>
             </label>
           </div>
 
@@ -196,20 +211,20 @@ export function QuotesView() {
             {form.items.map((item, index) => (
               <div key={`${index}-${item.description}`} className="grid gap-2 rounded-xl border p-3 md:grid-cols-12">
                 <input
-                  className="rounded-lg border p-2 bg-transparent md:col-span-6"
+                  className="rounded-lg border border-slate-300 p-2 bg-white/70 dark:border-slate-700 dark:bg-slate-900 md:col-span-6"
                   placeholder="Descripción del item"
                   value={item.description}
                   onChange={(event) => setItem(index, { description: event.target.value })}
                 />
                 <input
-                  className="rounded-lg border p-2 bg-transparent md:col-span-2"
+                  className="rounded-lg border border-slate-300 p-2 bg-white/70 dark:border-slate-700 dark:bg-slate-900 md:col-span-2"
                   type="number"
                   min={1}
                   value={item.qty}
                   onChange={(event) => setItem(index, { qty: Number(event.target.value) })}
                 />
                 <input
-                  className="rounded-lg border p-2 bg-transparent md:col-span-3"
+                  className="rounded-lg border border-slate-300 p-2 bg-white/70 dark:border-slate-700 dark:bg-slate-900 md:col-span-3"
                   type="number"
                   min={0}
                   value={item.unitPrice}
@@ -262,9 +277,11 @@ export function QuotesView() {
                     <div>
                       <p className="font-medium">{quote.title}</p>
                       <p className="text-xs text-slate-500">
-                        {customersById.get(quote.customerId) ?? 'Cliente no disponible'} •{' '}
-                        {new Date(quote.createdAt).toLocaleString()}
+                        {customersById.get(quote.customerId) ?? 'Cliente no disponible'} • {new Date(quote.createdAt).toLocaleString()}
                       </p>
+                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${quote.createdBy === 'ai_agent' ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-200' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200'}`}>
+                        {quote.createdBy === 'ai_agent' ? 'Generada por IA' : 'Generada por persona'}
+                      </span>
                     </div>
                     <p className="text-sm font-semibold text-blue-600">
                       {quote.currency} {quote.total.toFixed(2)}

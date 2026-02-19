@@ -17,6 +17,7 @@ export const quotePayloadSchema = z.object({
   customerId: z.string().uuid('CustomerId inválido'),
   title: z.string().min(1, 'El título es obligatorio'),
   currency: z.string().default('DOP'),
+  createdBy: z.enum(['human', 'ai_agent']).default('human'),
   items: z.array(createQuoteItemSchema).min(1, 'Debe incluir al menos un item')
 });
 
@@ -26,6 +27,7 @@ export const mcpCreateQuoteSchema = z.object({
   customerNameOrId: z.string().min(1, 'customerNameOrId es obligatorio'),
   title: z.string().min(1, 'title es obligatorio'),
   currency: z.string().default('DOP'),
+  createdBy: z.enum(['human', 'ai_agent']).default('ai_agent'),
   items: z.array(createQuoteItemSchema).min(1, 'Debe incluir al menos un item')
 });
 
