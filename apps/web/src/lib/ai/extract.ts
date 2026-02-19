@@ -16,8 +16,77 @@ const TITLE_STOP_WORDS = new Set([
   'los',
   'las',
   'quiero',
-  'necesito'
+  'necesito',
+  'articulo',
+  'artículos',
+  'articulos'
 ]);
+
+const NUMBER_CONNECTORS = new Set(['y']);
+const NUMBER_UNITS: Record<string, number> = {
+  cero: 0,
+  un: 1,
+  uno: 1,
+  una: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+  siete: 7,
+  ocho: 8,
+  nueve: 9,
+  diez: 10,
+  once: 11,
+  doce: 12,
+  trece: 13,
+  catorce: 14,
+  quince: 15,
+  dieciseis: 16,
+  dieciséis: 16,
+  diecisiete: 17,
+  dieciocho: 18,
+  diecinueve: 19,
+  veinte: 20,
+  veintiuno: 21,
+  veintiun: 21,
+  veintiuna: 21,
+  veintidos: 22,
+  veintidós: 22,
+  veintitres: 23,
+  veintitrés: 23,
+  veinticuatro: 24,
+  veinticinco: 25,
+  veintiseis: 26,
+  veintiséis: 26,
+  veintisiete: 27,
+  veintiocho: 28,
+  veintinueve: 29
+};
+const NUMBER_TENS: Record<string, number> = {
+  treinta: 30,
+  cuarenta: 40,
+  cincuenta: 50,
+  sesenta: 60,
+  setenta: 70,
+  ochenta: 80,
+  noventa: 90
+};
+const NUMBER_HUNDREDS: Record<string, number> = {
+  cien: 100,
+  ciento: 100,
+  doscientos: 200,
+  trescientos: 300,
+  cuatrocientos: 400,
+  quinientos: 500,
+  seiscientos: 600,
+  setecientos: 700,
+  ochocientos: 800,
+  novecientos: 900
+};
+
+const NUMBER_WORD_PATTERN =
+  /^(?:cero|un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieciseis|dieciséis|diecisiete|dieciocho|diecinueve|veinte|veinti(?:uno|un|una|dos|dós|tres|trés|cuatro|cinco|seis|séis|siete|ocho|nueve)|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|mil|millon|millón|millones|coma|punto|y)$/i;
 
 const cleanText = (value: string) =>
   value
@@ -26,6 +95,85 @@ const cleanText = (value: string) =>
     .replace(/[–—]/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
+
+const parseSpanishNumberPhrase = (phrase: string) => {
+  const words = cleanText(phrase)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!words.length) return undefined;
+  if (words.length === 1 && ['un', 'uno', 'una'].includes(words[0])) return undefined;
+
+  let total = 0;
+  let current = 0;
+  let decimalDigits = '';
+  let decimalMode = false;
+  let consumed = false;
+
+  for (const word of words) {
+    if (NUMBER_CONNECTORS.has(word)) continue;
+    if (word === 'coma' || word === 'punto') {
+      decimalMode = true;
+      continue;
+    }
+
+    const unitValue = NUMBER_UNITS[word] ?? NUMBER_TENS[word] ?? NUMBER_HUNDREDS[word];
+    if (decimalMode) {
+      if (unitValue === undefined) return undefined;
+      if (unitValue >= 10 && unitValue % 10 === 0) {
+        decimalDigits += String(unitValue / 10);
+      } else {
+        decimalDigits += String(unitValue);
+      }
+      consumed = true;
+      continue;
+    }
+
+    if (unitValue !== undefined) {
+      current += unitValue;
+      consumed = true;
+      continue;
+    }
+
+    if (word === 'mil') {
+      current = (current || 1) * 1000;
+      total += current;
+      current = 0;
+      consumed = true;
+      continue;
+    }
+
+    if (word === 'millon' || word === 'millón' || word === 'millones') {
+      current = (current || 1) * 1_000_000;
+      total += current;
+      current = 0;
+      consumed = true;
+      continue;
+    }
+
+    return undefined;
+  }
+
+  if (!consumed) return undefined;
+  const integerPart = total + current;
+  if (!decimalDigits) return integerPart;
+  return Number(`${integerPart}.${decimalDigits}`);
+};
+
+const normalizeSpeechNumbers = (input: string) =>
+  input.replace(/\b([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,6})\b/gi, (segment) => {
+    const normalizedSegment = segment
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (!normalizedSegment.length || !normalizedSegment.every((token) => NUMBER_WORD_PATTERN.test(token))) {
+      return segment;
+    }
+
+    const parsed = parseSpanishNumberPhrase(segment);
+    return parsed === undefined || Number.isNaN(parsed) ? segment : String(parsed);
+  });
 
 const parseNumber = (value: string) => {
   const compact = value.replace(/\s/g, '').replace(/[^\d.,]/g, '');
@@ -163,14 +311,15 @@ export function extractEntities(intent: Intent, text: string) {
 
 function parseItems(text: string, fallbackDescription: string) {
   const normalizedFallback = normalizeDescription(fallbackDescription);
-  const workingText = cleanText(text).replace(/\s+y\s+/gi, ', ');
-  const priceSuffix = '(?:\\s*(?:usd|us\\$|dolares?|dólares?|rd\\$|dop|eur|euros?))?(?:\\s*(?:c\\/u|cada\\s*(?:uno|una|unidad)|por\\s*unidad|unidad(?:es)?))?';
+  const workingText = normalizeSpeechNumbers(cleanText(text)).replace(/\s+y\s+/gi, ', ');
+  const unitLabelPattern = '(?:unidades?|uds?|x|art[ií]culos?|piezas?|servicios?)';
+  const priceSuffix = `(?:\\s*(?:usd|us\\$|dolares?|dólares?|rd\\$|dop|eur|euros?))?(?:\\s*(?:c\\/u|cada\\s*(?:uno|una|unidad)|por\\s*unidad|${unitLabelPattern}))?`;
   const directPatterns = [
     new RegExp(
-      `(\\d+)\\s*(?:unidades?|uds?|x)\\s*(?:de)?\\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s*(?:a|por)\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`,
+      `(\\d+)\\s*${unitLabelPattern}\\s*(?:de)?\\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s*(?:a|por)\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`,
       'gi'
     ),
-    /([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:x|por)\s*(\d+)\s*(?:unidades?|uds?)(?:\s*(?:a|por)\s*(\d+(?:[\.,]\d+)?))?/gi,
+    new RegExp(`([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s*(?:x|por)\\s*(\\d+)\\s*${unitLabelPattern}(?:\\s*(?:a|por)\\s*(\\d+(?:[\\.,]\\d+)?))?`, 'gi'),
     /(?:por|de)\s*(\d+(?:[\.,]\d+)?)\s*(?:para\s+(?:un|una))\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]+?)(?:,|$)/gi,
     new RegExp(`(?:de\\s+)?(\\d+)\\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\\s-]{3,}?)\\s+a\\s*(\\d+(?:[\\.,]\\d+)?)${priceSuffix}(?:,|$)`, 'gi'),
     new RegExp(
@@ -223,7 +372,7 @@ function parseItems(text: string, fallbackDescription: string) {
 
   for (const segment of segments) {
     const inlineItemMatch = segment.match(
-      /(?:de\s+)?(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+(?:a|por)\s*([\d.,]+)/i
+    /(?:de\s+)?(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+(?:a|por)\s*([\d.,]+)/i
     );
     const qty = Number(inlineItemMatch?.[1] ?? segment.match(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?(\d+)/i)?.[1] ?? 1);
     const unitPrice = parseNumber(inlineItemMatch?.[3] ?? segment.match(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?([\d.,]+)/i)?.[1] ?? '');
