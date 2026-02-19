@@ -16,13 +16,23 @@ export function extractEntities(intent: Intent, text: string) {
 
   if (intent === 'CREATE_QUOTE') {
     const customer = text.match(/(?:para|cliente)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:\spor|\sde|,|$)/i)?.[1]?.trim();
+    const customerEmail = text.match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/)?.[0];
+    const customerRnc = text.match(/\b\d{3}-\d{7}-\d\b/)?.[0];
+    const customerPhone = text.match(/\b\d{10}\b/)?.[0];
     const title =
       text.match(/(?:por|de)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:,|\d|\sa\s|$)/i)?.[1]?.trim() ||
       'Cotización generada por agente';
 
     const items = parseItems(text, title || 'Servicio');
 
-    return { customer, title, items };
+    return {
+      customer,
+      customerEmail,
+      customerRnc,
+      customerPhone,
+      title,
+      items
+    };
   }
 
   return {};

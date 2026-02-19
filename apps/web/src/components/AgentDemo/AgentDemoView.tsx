@@ -17,18 +17,100 @@ const smartPromptSuggestions = [
   'Crear cotización en USD para [NOMBRE] por consultoría, 3 unidades a 150'
 ];
 
+type SpeechRecognitionCtor = new () => {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: any) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
 export function AgentDemoView() {
   const [input, setInput] = useState('');
   const [trace, setTrace] = useState<any>(null);
+  const [draftResult, setDraftResult] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
 
   const filteredSuggestions = useMemo(() => {
     const normalizedInput = input.trim().toLowerCase();
     if (!normalizedInput) return smartPromptSuggestions;
     return smartPromptSuggestions.filter((suggestion) => suggestion.toLowerCase().includes(normalizedInput)).slice(0, 4);
   }, [input]);
+
+  const inlineSuggestions = useMemo(() => {
+    if (!draftResult?.payload || !input.trim()) return [];
+
+    const payload = draftResult.payload as any;
+    const tips: string[] = [];
+
+    if (draftResult.intent === 'CREATE_QUOTE') {
+      if (!payload.customerNameOrId) tips.push('Agrega el nombre del cliente, por ejemplo: "para María Pérez".');
+      if (!Array.isArray(payload.items) || payload.items.length === 0) {
+        tips.push('Agrega cantidad y precio, por ejemplo: "2 unidades a 5500".');
+      }
+      if ((payload.customer?.email || payload.customer?.phone) && payload.customer?.name) {
+        tips.push('Detecté datos del cliente. Si no existe, la IA lo creará automáticamente.');
+      }
+    }
+
+    if (draftResult.intent === 'CREATE_CUSTOMER' && !payload.name) {
+      tips.push('Incluye un nombre para crear el cliente.');
+    }
+
+    if (tips.length === 0) {
+      tips.push('Se ve bien. Puedes ejecutar cuando quieras.');
+    }
+
+    return tips;
+  }, [draftResult, input]);
+
+  const canUseVoice = typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+
+  const toggleVoiceInput = () => {
+    if (!canUseVoice) {
+      setError('Tu navegador no soporta reconocimiento de voz en tiempo real.');
+      return;
+    }
+
+    const SpeechRecognition = ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) as SpeechRecognitionCtor;
+
+    if (listening) {
+      setListening(false);
+      return;
+    }
+
+    setError('');
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-DO';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0]?.transcript || '')
+        .join(' ')
+        .trim();
+      setInput(transcript);
+    };
+
+    recognition.onerror = () => {
+      setError('No se pudo capturar el audio. Verifica permisos del micrófono.');
+      setListening(false);
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+    };
+
+    recognition.start();
+    setListening(true);
+  };
 
   const run = async () => {
     setError('');
@@ -69,6 +151,24 @@ export function AgentDemoView() {
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (!input.trim()) {
+      setDraftResult(null);
+      return;
+    }
+
+    const id = setTimeout(async () => {
+      try {
+        const result = await buildAgentResult(input);
+        setDraftResult(result);
+      } catch {
+        setDraftResult(null);
+      }
+    }, 250);
+
+    return () => clearTimeout(id);
+  }, [input]);
+
   return (
     <section className="space-y-6">
       <header className="rounded-3xl border border-violet-200 bg-gradient-to-r from-violet-600 to-blue-600 p-6 text-white shadow-lg">
@@ -91,8 +191,28 @@ export function AgentDemoView() {
             />
           </label>
 
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={`rounded-xl border px-4 py-2 ${listening ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-300'}`}
+              onClick={toggleVoiceInput}
+              type="button"
+            >
+              {listening ? 'Detener micrófono' : '🎙️ Dictar con micrófono'}
+            </button>
+            <button className="rounded-xl border border-slate-300 px-4 py-2" onClick={() => setInput(examples.join('\n'))}>
+              Cargar ejemplos
+            </button>
+            <button
+              className="rounded-xl bg-blue-600 px-4 py-2 text-white disabled:opacity-70"
+              onClick={run}
+              disabled={!input.trim() || loading}
+            >
+              {loading ? 'Procesando...' : 'Ejecutar asistente'}
+            </button>
+          </div>
+
           <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/70 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-blue-700">Autocompletado sugerido</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-blue-700">Sugerencias en tiempo real</p>
             <div className="flex flex-wrap gap-2">
               {filteredSuggestions.map((suggestion) => (
                 <button
@@ -105,19 +225,11 @@ export function AgentDemoView() {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button className="rounded-xl border border-slate-300 px-4 py-2" onClick={() => setInput(examples.join('\n'))}>
-              Cargar ejemplos
-            </button>
-            <button
-              className="rounded-xl bg-blue-600 px-4 py-2 text-white disabled:opacity-70"
-              onClick={run}
-              disabled={!input.trim() || loading}
-            >
-              {loading ? 'Procesando...' : 'Ejecutar asistente'}
-            </button>
+            <ul className="mt-3 space-y-1 text-xs text-blue-900">
+              {inlineSuggestions.map((tip) => (
+                <li key={tip}>• {tip}</li>
+              ))}
+            </ul>
           </div>
 
           <div className="grid gap-2 text-xs text-slate-600">

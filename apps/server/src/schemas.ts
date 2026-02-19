@@ -25,6 +25,7 @@ export const mcpCreateCustomerSchema = customerPayloadSchema;
 
 export const mcpCreateQuoteSchema = z.object({
   customerNameOrId: z.string().min(1, 'customerNameOrId es obligatorio'),
+  customer: customerPayloadSchema.partial().optional(),
   title: z.string().min(1, 'title es obligatorio'),
   currency: z.string().default('DOP'),
   createdBy: z.enum(['human', 'ai_agent']).default('ai_agent'),
