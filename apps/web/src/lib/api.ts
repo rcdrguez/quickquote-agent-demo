@@ -21,5 +21,6 @@ export const api = {
   getQuotes: () => request<any[]>('/api/quotes'),
   createQuote: (payload: any) => request('/api/quotes', { method: 'POST', body: JSON.stringify(payload) }),
   getQuote: (id: string) => request<any>(`/api/quotes/${id}`),
+  getLogs: () => request<any[]>('/api/logs'),
   callMcp: (tool: string, input: any) => request('/mcp', { method: 'POST', body: JSON.stringify({ tool, input }) })
 };

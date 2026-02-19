@@ -4,6 +4,7 @@ import { createCustomer, listCustomers, updateCustomer } from '../services/custo
 import { createQuote, getQuote, listQuotes } from '../services/quotes.js';
 import { customerPayloadSchema, quotePayloadSchema } from '../schemas.js';
 import { AppError } from '../utils/errors.js';
+import { addServerLog, listServerLogs } from '../logs.js';
 
 const router = Router();
 
@@ -62,9 +63,19 @@ router.get('/quotes/:id', async (req, res, next) => {
   }
 });
 
+router.get('/logs', (_req, res) => {
+  res.json(listServerLogs());
+});
+
 export const apiRouter = router;
 
-export const errorHandler = (error: unknown, _req: any, res: any, _next: any) => {
+export const errorHandler = (error: unknown, req: any, res: any, _next: any) => {
+  addServerLog({
+    level: 'error',
+    event: `error ${req.method} ${req.path}`,
+    details: { message: error instanceof Error ? error.message : 'unknown_error' }
+  });
+
   if (error instanceof ZodError) {
     return res.status(400).json({ message: 'Validación inválida', details: error.flatten() });
   }
