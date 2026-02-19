@@ -44,9 +44,9 @@ const buildPrintableQuoteHtml = (quote: Quote, customerName: string, sourceLabel
       (item) => `
       <tr>
         <td>${escapeHtml(item.description)}</td>
-        <td class="text-right">${item.qty}</td>
-        <td class="text-right">${escapeHtml(formatMoney(quote.currency, item.unitPrice))}</td>
-        <td class="text-right">${escapeHtml(formatMoney(quote.currency, item.qty * item.unitPrice))}</td>
+        <td class="text-end">${item.qty}</td>
+        <td class="text-end">${escapeHtml(formatMoney(quote.currency, item.unitPrice))}</td>
+        <td class="text-end fw-semibold">${escapeHtml(formatMoney(quote.currency, item.qty * item.unitPrice))}</td>
       </tr>`
     )
     .join('');
@@ -55,54 +55,133 @@ const buildPrintableQuoteHtml = (quote: Quote, customerName: string, sourceLabel
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Cotización ${escapeHtml(quote.title)}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
-      @page { size: A4; margin: 20mm; }
-      * { box-sizing: border-box; }
-      body { font-family: Inter, Segoe UI, Arial, sans-serif; color: #0f172a; }
-      .header { background: linear-gradient(135deg, #1e293b, #1d4ed8); color: white; border-radius: 14px; padding: 18px 20px; }
-      .title { margin: 8px 0 0; font-size: 24px; }
-      .meta { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-      .meta-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
-      .meta-label { font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: .07em; margin-bottom: 4px; }
-      table { width: 100%; margin-top: 16px; border-collapse: collapse; }
-      thead { background: #eff6ff; }
-      th, td { border: 1px solid #dbeafe; padding: 10px 12px; font-size: 13px; }
-      th { text-align: left; color: #1e3a8a; }
-      .text-right { text-align: right; }
-      .totals { margin-top: 16px; margin-left: auto; width: 300px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
-      .row { display: flex; justify-content: space-between; padding: 3px 0; }
-      .row.total { margin-top: 6px; border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 18px; font-weight: 700; }
-      .footnote { margin-top: 28px; font-size: 12px; color: #64748b; }
+      @page { size: A4; margin: 14mm; }
+      body {
+        font-family: Inter, "Segoe UI", system-ui, sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .sheet {
+        background: #ffffff;
+        border-radius: 18px;
+        border: 1px solid #dbeafe;
+        box-shadow: 0 15px 45px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+      }
+      .hero {
+        background: radial-gradient(circle at top right, #2563eb, #1e1b4b 68%);
+        color: white;
+      }
+      .hero-subtitle {
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        font-size: 11px;
+        opacity: .85;
+      }
+      .hero-title {
+        font-size: 30px;
+        font-weight: 700;
+      }
+      .meta-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #f8fafc;
+      }
+      .meta-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        color: #64748b;
+      }
+      .table thead th {
+        background: #eff6ff;
+        color: #1e3a8a;
+        font-size: 12px;
+        border-bottom: 0;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+      }
+      .summary {
+        border: 1px solid #dbeafe;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%);
+      }
+      .summary-total {
+        font-size: 1.4rem;
+        color: #1d4ed8;
+      }
+      .watermark {
+        position: absolute;
+        top: 50%;
+        left: 52%;
+        transform: translate(-50%, -50%) rotate(-26deg);
+        color: rgba(37, 99, 235, 0.06);
+        font-size: 92px;
+        font-weight: 800;
+        pointer-events: none;
+        user-select: none;
+      }
+      @media print {
+        body { background: white; }
+        .sheet { box-shadow: none; }
+      }
     </style>
   </head>
   <body>
-    <header class="header">
-      <div>QuickQuote · Documento comercial</div>
-      <h1 class="title">${escapeHtml(quote.title)}</h1>
-    </header>
+    <main class="container py-3">
+      <article class="sheet position-relative p-0">
+        <div class="watermark">QUICKQUOTE</div>
+        <header class="hero p-4 p-md-5">
+          <div class="d-flex justify-content-between align-items-start gap-4 flex-wrap">
+            <div>
+              <p class="hero-subtitle mb-2">Propuesta comercial</p>
+              <h1 class="hero-title mb-0">${escapeHtml(quote.title)}</h1>
+            </div>
+            <div class="text-md-end">
+              <div class="small opacity-75">Documento</div>
+              <div class="fs-5 fw-bold">#${escapeHtml(quote.id.slice(0, 8).toUpperCase())}</div>
+            </div>
+          </div>
+        </header>
 
-    <section class="meta">
-      <div class="meta-card"><div class="meta-label">Cliente</div><strong>${escapeHtml(customerName)}</strong></div>
-      <div class="meta-card"><div class="meta-label">Fecha de emisión</div><strong>${escapeHtml(createdAt)}</strong></div>
-      <div class="meta-card"><div class="meta-label">Moneda</div><strong>${escapeHtml(quote.currency)}</strong></div>
-      <div class="meta-card"><div class="meta-label">Canal</div><strong>${escapeHtml(sourceLabel)}</strong></div>
-    </section>
+        <section class="p-4 p-md-5">
+          <div class="row g-3 mb-4">
+            <div class="col-md-6"><div class="meta-card p-3"><div class="meta-label">Cliente</div><div class="fw-semibold mt-1">${escapeHtml(customerName)}</div></div></div>
+            <div class="col-md-6"><div class="meta-card p-3"><div class="meta-label">Fecha emisión</div><div class="fw-semibold mt-1">${escapeHtml(createdAt)}</div></div></div>
+            <div class="col-md-6"><div class="meta-card p-3"><div class="meta-label">Moneda</div><div class="fw-semibold mt-1">${escapeHtml(quote.currency)}</div></div></div>
+            <div class="col-md-6"><div class="meta-card p-3"><div class="meta-label">Canal</div><div class="fw-semibold mt-1">${escapeHtml(sourceLabel)}</div></div></div>
+          </div>
 
-    <table>
-      <thead>
-        <tr><th>Descripción</th><th class="text-right">Cantidad</th><th class="text-right">Precio unitario</th><th class="text-right">Total</th></tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+          <div class="table-responsive rounded-4 border border-primary-subtle overflow-hidden">
+            <table class="table align-middle mb-0">
+              <thead>
+                <tr><th>Descripción</th><th class="text-end">Cantidad</th><th class="text-end">Precio unitario</th><th class="text-end">Importe</th></tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
 
-    <aside class="totals">
-      <div class="row"><span>Subtotal</span><strong>${escapeHtml(formatMoney(quote.currency, quote.subtotal))}</strong></div>
-      <div class="row"><span>ITBIS (18%)</span><strong>${escapeHtml(formatMoney(quote.currency, quote.tax))}</strong></div>
-      <div class="row total"><span>Total</span><strong>${escapeHtml(formatMoney(quote.currency, quote.total))}</strong></div>
-    </aside>
+          <div class="row justify-content-end mt-4">
+            <div class="col-md-6 col-lg-5">
+              <div class="summary p-3 p-md-4">
+                <div class="d-flex justify-content-between small text-secondary mb-2"><span>Subtotal</span><strong>${escapeHtml(formatMoney(quote.currency, quote.subtotal))}</strong></div>
+                <div class="d-flex justify-content-between small text-secondary mb-3"><span>ITBIS (18%)</span><strong>${escapeHtml(formatMoney(quote.currency, quote.tax))}</strong></div>
+                <div class="d-flex justify-content-between align-items-center border-top pt-3"><span class="fw-semibold">Total</span><strong class="summary-total">${escapeHtml(formatMoney(quote.currency, quote.total))}</strong></div>
+              </div>
+            </div>
+          </div>
 
-    <p class="footnote">Gracias por su confianza. Esta cotización tiene validez de 15 días.</p>
+          <footer class="mt-4 pt-3 border-top text-secondary small">
+            <p class="mb-1">Gracias por su confianza. Esta cotización tiene validez de 15 días naturales.</p>
+            <p class="mb-0">Emitido automáticamente por QuickQuote.</p>
+          </footer>
+        </section>
+      </article>
+    </main>
     <script>window.onload = () => { window.print(); };</script>
   </body>
 </html>`;
@@ -142,7 +221,7 @@ export function QuoteDetailView() {
     if (!quote) return;
 
     const printableHtml = buildPrintableQuoteHtml(quote, customerName, sourceLabel);
-    const printWindow = window.open('', `quote-print-${quote.id}`, 'width=960,height=1200');
+    const printWindow = window.open('', `quote-print-${quote.id}`, 'width=1100,height=1350');
     if (!printWindow) {
       setError('No se pudo abrir la vista de impresión. Revisa el bloqueador de popups.');
       return;
@@ -164,7 +243,7 @@ export function QuoteDetailView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold">Detalle de cotización</h2>
-          <p className="text-sm text-slate-500">Plantilla estandarizada de cotización con diseño UI/UX profesional para exportar a PDF.</p>
+          <p className="text-sm text-slate-500">Plantilla PDF renovada con layout estilo invoice profesional sobre Bootstrap 5.</p>
         </div>
         <button className="rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700" onClick={downloadPdf}>
           Descargar PDF
