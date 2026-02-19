@@ -42,48 +42,86 @@ const escapePdfText = (value: string) => sanitizePdfText(value).replace(/\\/g, '
 
 const pdfText = (x: number, y: number, size: number, value: string) => `BT /F1 ${size} Tf ${x} ${y} Td (${escapePdfText(value)}) Tj ET`;
 
-const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: string) => {
-  const baseY = 740;
-  const rowStartY = 610;
+const wrapPdfText = (value: string, maxChars: number) => {
+  const words = sanitizePdfText(value).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [''];
 
-  const rows = quote.items.flatMap((item, index) => {
-    const y = rowStartY - index * 22;
+  const lines: string[] = [];
+  let line = '';
+
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length <= maxChars) {
+      line = candidate;
+      continue;
+    }
+
+    if (line) lines.push(line);
+    line = word;
+  }
+
+  if (line) lines.push(line);
+  return lines;
+};
+
+const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: string) => {
+  const createdAt = new Date(quote.createdAt).toLocaleString('es-DO');
+  const commands: string[] = [
+    '0.1 0.15 0.35 rg',
+    '40 730 532 52 re f',
+    '1 1 1 rg',
+    pdfText(54, 760, 18, 'QuickQuote'),
+    pdfText(54, 742, 10, 'Cotizacion comercial profesional'),
+    '0.93 0.96 1 rg',
+    '40 648 532 68 re f',
+    '0.18 0.22 0.3 rg',
+    pdfText(54, 700, 11, `Documento: ${quote.title}`),
+    pdfText(54, 684, 10, `Cliente: ${customerName}`),
+    pdfText(54, 668, 10, `Fecha de emision: ${createdAt}`),
+    pdfText(330, 684, 10, `Canal: ${sourceLabel}`),
+    pdfText(330, 668, 10, `Moneda: ${quote.currency}`),
+    '0.2 0.24 0.34 rg',
+    '40 626 532 20 re f',
+    '1 1 1 rg',
+    pdfText(54, 632, 9, 'Descripcion'),
+    pdfText(370, 632, 9, 'Cant.'),
+    pdfText(430, 632, 9, 'Precio unitario'),
+    pdfText(514, 632, 9, 'Total'),
+    '0 0 0 rg'
+  ];
+
+  let currentY = 612;
+  quote.items.forEach((item, index) => {
+    const lines = wrapPdfText(item.description, 48);
+    const rowHeight = Math.max(20, lines.length * 12);
     const lineTotal = item.qty * item.unitPrice;
-    return [
-      pdfText(54, y, 10, item.description.slice(0, 44)),
-      pdfText(356, y, 10, String(item.qty)),
-      pdfText(418, y, 10, item.unitPrice.toFixed(2)),
-      pdfText(504, y, 10, lineTotal.toFixed(2))
-    ];
+
+    if (index % 2 === 0) {
+      commands.push('0.98 0.99 1 rg');
+      commands.push(`40 ${currentY - rowHeight + 4} 532 ${rowHeight} re f`);
+      commands.push('0 0 0 rg');
+    }
+
+    lines.forEach((line, lineIndex) => {
+      commands.push(pdfText(54, currentY - lineIndex * 11, 9, line));
+    });
+
+    commands.push(pdfText(372, currentY, 9, String(item.qty)));
+    commands.push(pdfText(430, currentY, 9, formatMoney(quote.currency, item.unitPrice)));
+    commands.push(pdfText(514, currentY, 9, formatMoney(quote.currency, lineTotal)));
+    currentY -= rowHeight;
   });
 
-  const commands = [
-    '0.12 0.24 0.58 rg',
-    '40 742 532 34 re f',
-    '1 1 1 rg',
-    pdfText(54, 754, 16, 'QUICKQUOTE - COTIZACION PROFESIONAL'),
-    '0 0 0 rg',
-    pdfText(54, baseY, 11, `Documento: ${quote.title}`),
-    pdfText(54, baseY - 22, 10, `Cliente: ${customerName}`),
-    pdfText(54, baseY - 40, 10, `Fecha: ${new Date(quote.createdAt).toLocaleString()}`),
-    pdfText(54, baseY - 58, 10, `Canal: ${sourceLabel}`),
-    pdfText(54, baseY - 76, 10, `Moneda: ${quote.currency}`),
-    '0.95 0.96 0.99 rg',
-    '40 620 532 24 re f',
-    '0.2 0.23 0.3 rg',
-    pdfText(54, 628, 10, 'Descripcion'),
-    pdfText(356, 628, 10, 'Cant.'),
-    pdfText(418, 628, 10, 'Precio'),
-    pdfText(504, 628, 10, 'Total'),
-    '0 0 0 rg',
-    ...rows,
+  commands.push(
     '0.2 0.23 0.3 RG',
-    '40 120 532 0.8 re S',
-    pdfText(360, 96, 10, `Subtotal: ${quote.subtotal.toFixed(2)}`),
-    pdfText(360, 78, 10, `ITBIS (18%): ${quote.tax.toFixed(2)}`),
-    pdfText(360, 56, 12, `TOTAL: ${quote.total.toFixed(2)} ${quote.currency}`),
-    pdfText(54, 56, 9, 'Gracias por su confianza. Esta cotizacion tiene validez de 15 dias.')
-  ].join('\n');
+    `40 ${currentY - 16} 532 0.8 re S`,
+    pdfText(360, currentY - 34, 10, `Subtotal: ${formatMoney(quote.currency, quote.subtotal)}`),
+    pdfText(360, currentY - 50, 10, `ITBIS (18%): ${formatMoney(quote.currency, quote.tax)}`),
+    pdfText(360, currentY - 72, 12, `TOTAL: ${formatMoney(quote.currency, quote.total)}`),
+    pdfText(54, 52, 9, 'Gracias por su confianza. Esta cotizacion tiene validez de 15 dias.')
+  );
+
+  const content = commands.join('\n');
 
   const info = `6 0 obj\n<< /Title (${escapePdfText(`Cotizacion ${quote.title}`)}) /Author (${escapePdfText(
     sourceLabel
@@ -94,7 +132,7 @@ const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: s
     '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj',
     '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj',
     '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj',
-    `5 0 obj\n<< /Length ${commands.length} >>\nstream\n${commands}\nendstream\nendobj`,
+    `5 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj`,
     info
   ];
 

@@ -26,7 +26,29 @@ const cleanText = (value: string) =>
     .trim();
 
 const parseNumber = (value: string) => {
-  const normalized = value.replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+  const compact = value.replace(/\s/g, '').replace(/[^\d.,]/g, '');
+  if (!compact) return Number.NaN;
+
+  const commaCount = (compact.match(/,/g) || []).length;
+  const dotCount = (compact.match(/\./g) || []).length;
+
+  if (commaCount > 0 && dotCount > 0) {
+    const decimalSeparator = compact.lastIndexOf(',') > compact.lastIndexOf('.') ? ',' : '.';
+    const thousandsSeparator = decimalSeparator === ',' ? /\./g : /,/g;
+    const normalized = compact.replace(thousandsSeparator, '').replace(decimalSeparator, '.');
+    return Number(normalized);
+  }
+
+  if (commaCount > 1 || dotCount > 1) {
+    return Number(compact.replace(/[,.]/g, ''));
+  }
+
+  const uniqueSeparator = commaCount === 1 ? ',' : dotCount === 1 ? '.' : '';
+  if (!uniqueSeparator) return Number(compact);
+
+  const [left, right = ''] = compact.split(uniqueSeparator);
+  const looksLikeThousands = right.length === 3 && left.length >= 1;
+  const normalized = looksLikeThousands ? `${left}${right}` : `${left}.${right}`;
   return Number(normalized);
 };
 
@@ -167,6 +189,27 @@ function parseItems(text: string, fallbackDescription: string) {
 
   if (directItems.length > 0) {
     return Array.from(new Map(directItems.map((item) => [`${item.description}-${item.qty}-${item.unitPrice}`, item])).values());
+  }
+
+  const segmentedItems: { description: string; qty: number; unitPrice: number }[] = [];
+  const segments = workingText.split(/[,;\n]/).map((segment) => segment.trim());
+
+  for (const segment of segments) {
+    const qty = Number(segment.match(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?(\d+)/i)?.[1] ?? 1);
+    const unitPrice = parseNumber(segment.match(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?([\d.,]+)/i)?.[1] ?? '');
+    const description = normalizeDescription(
+      segment
+        .replace(/(?:cantidad|cant\.?|qty)\s*(?:de\s*)?\d+/gi, ' ')
+        .replace(/(?:precio|valor|costo|a|por)\s*(?:de\s*)?[\d.,]+/gi, ' ')
+        .replace(/(?:x)\s*\d+/gi, ' ')
+    );
+
+    if (!Number.isFinite(unitPrice) || unitPrice < 0.01 || qty < 1) continue;
+    segmentedItems.push({ description, qty, unitPrice });
+  }
+
+  if (segmentedItems.length > 0) {
+    return Array.from(new Map(segmentedItems.map((item) => [`${item.description}-${item.qty}-${item.unitPrice}`, item])).values());
   }
 
   const patterns = [
