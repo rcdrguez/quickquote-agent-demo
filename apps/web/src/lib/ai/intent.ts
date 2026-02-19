@@ -1,5 +1,5 @@
 import { pipeline } from '@xenova/transformers';
-import type { Intent } from './types';
+import type { Intent, IntentAlternative } from './types';
 
 const intentExamples: Record<Intent, string[]> = {
   CREATE_CUSTOMER: [
@@ -96,18 +96,29 @@ function fallbackIntent(lowered: string): Intent {
   return 'LIST_CUSTOMERS';
 }
 
-export async function detectIntent(input: string): Promise<{ intent: Intent; backend: 'webgpu' | 'wasm' | 'unknown' }> {
+const roundScore = (score: number) => Math.max(0, Math.min(1, Number(score.toFixed(3))));
+
+export async function detectIntent(input: string): Promise<{
+  intent: Intent;
+  backend: 'webgpu' | 'wasm' | 'unknown';
+  confidence: number;
+  alternatives: IntentAlternative[];
+}> {
   const lowered = input.toLowerCase();
   const strict = strictRuleIntent(lowered);
   if (strict) {
     const backend = (navigator as any).gpu ? 'webgpu' : 'wasm';
-    return { intent: strict, backend };
+    return {
+      intent: strict,
+      backend,
+      confidence: 0.92,
+      alternatives: []
+    };
   }
 
   try {
     const inputVec = await embed(input);
-    let bestIntent: Intent = 'LIST_CUSTOMERS';
-    let bestScore = -Infinity;
+    const scoredIntents: IntentAlternative[] = [];
 
     for (const [intent, samples] of Object.entries(intentExamples) as [Intent, string[]][]) {
       const sampleScores: number[] = [];
@@ -119,16 +130,29 @@ export async function detectIntent(input: string): Promise<{ intent: Intent; bac
 
       const semanticScore = sampleScores.reduce((acc, score) => acc + score, 0) / sampleScores.length;
       const score = semanticScore + heuristicScore(intent, lowered);
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestIntent = intent;
-      }
+      scoredIntents.push({ intent, score });
     }
 
+    scoredIntents.sort((a, b) => b.score - a.score);
+
+    const [best, second] = scoredIntents;
+    const margin = second ? Math.max(0, best.score - second.score) : 0.35;
+    const confidence = roundScore(0.55 + Math.min(0.4, margin));
+
     const backend = (navigator as any).gpu ? 'webgpu' : 'wasm';
-    return { intent: bestIntent, backend };
+    return {
+      intent: best.intent,
+      backend,
+      confidence,
+      alternatives: scoredIntents.slice(1, 3).map((item) => ({ intent: item.intent, score: roundScore(item.score) }))
+    };
   } catch {
-    return { intent: fallbackIntent(lowered), backend: 'unknown' };
+    const fallback = fallbackIntent(lowered);
+    return {
+      intent: fallback,
+      backend: 'unknown',
+      confidence: 0.5,
+      alternatives: []
+    };
   }
 }
