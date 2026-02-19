@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { buildAgentResult } from '../../lib/ai/agent';
 
@@ -36,6 +36,8 @@ export function AgentDemoView() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
 
   const filteredSuggestions = useMemo(() => {
     const normalizedInput = input.trim().toLowerCase();
@@ -72,6 +74,20 @@ export function AgentDemoView() {
 
   const canUseVoice = typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
 
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  const scheduleAutoStop = () => {
+    clearSilenceTimer();
+    silenceTimerRef.current = window.setTimeout(() => {
+      recognitionRef.current?.stop();
+    }, 1400);
+  };
+
   const toggleVoiceInput = () => {
     if (!canUseVoice) {
       setError('Tu navegador no soporta reconocimiento de voz en tiempo real.');
@@ -81,14 +97,17 @@ export function AgentDemoView() {
     const SpeechRecognition = ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) as SpeechRecognitionCtor;
 
     if (listening) {
+      recognitionRef.current?.stop();
+      clearSilenceTimer();
       setListening(false);
       return;
     }
 
     setError('');
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
     recognition.lang = 'es-DO';
-    recognition.continuous = true;
+    recognition.continuous = false;
     recognition.interimResults = true;
 
     recognition.onresult = (event: any) => {
@@ -97,19 +116,35 @@ export function AgentDemoView() {
         .join(' ')
         .trim();
       setInput(transcript);
+      scheduleAutoStop();
     };
 
     recognition.onerror = () => {
+      clearSilenceTimer();
       setError('No se pudo capturar el audio. Verifica permisos del micrófono.');
       setListening(false);
     };
 
     recognition.onend = () => {
+      clearSilenceTimer();
       setListening(false);
+      recognitionRef.current = null;
     };
 
     recognition.start();
     setListening(true);
+  };
+
+  const autocompleteSuggestion = useMemo(() => {
+    const normalizedInput = input.trim().toLowerCase();
+    if (!normalizedInput) return '';
+    return smartPromptSuggestions.find((suggestion) => suggestion.toLowerCase().startsWith(normalizedInput) && suggestion.length > input.trim().length) ?? '';
+  }, [input]);
+
+  const applyAutocomplete = () => {
+    if (autocompleteSuggestion) {
+      setInput(autocompleteSuggestion);
+    }
   };
 
   const run = async () => {
@@ -188,7 +223,18 @@ export function AgentDemoView() {
               value={input}
               placeholder='Ejemplo: "Crear factura para Ana López por Diseño web, 1 unidad a 15000"'
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && autocompleteSuggestion) {
+                  e.preventDefault();
+                  applyAutocomplete();
+                }
+              }}
             />
+            {autocompleteSuggestion && (
+              <button className="text-xs text-blue-600 hover:text-blue-700" onClick={applyAutocomplete} type="button">
+                Sugerencia: {autocompleteSuggestion} (Tab para autocompletar)
+              </button>
+            )}
           </label>
 
           <div className="flex flex-wrap gap-2">
