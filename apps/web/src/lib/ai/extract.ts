@@ -15,8 +15,10 @@ export function extractEntities(intent: Intent, text: string) {
   }
 
   if (intent === 'CREATE_QUOTE') {
-    const customer = text.match(/para\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:\spor|,|$)/i)?.[1]?.trim();
-    const title = text.match(/por\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:,|\d|$)/i)?.[1]?.trim() || 'Cotización generada por agente';
+    const customer = text.match(/(?:para|cliente)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:\spor|\sde|,|$)/i)?.[1]?.trim();
+    const title =
+      text.match(/(?:por|de)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:,|\d|\sa\s|$)/i)?.[1]?.trim() ||
+      'Cotización generada por agente';
 
     const items = parseItems(text, title || 'Servicio');
 
@@ -29,15 +31,16 @@ export function extractEntities(intent: Intent, text: string) {
 function parseItems(text: string, fallbackDescription: string) {
   const patterns = [
     /(\d+)\s*(?:unidades?|x)\s*a?\s*(\d+(?:\.\d+)?)/gi,
+    /(\d+)\s*(?:unidades?|x)\s*de\s*(\d+(?:\.\d+)?)/gi,
     /qty\s*(\d+)\s*precio\s*(\d+(?:\.\d+)?)/gi,
-    /por\s*(\d+(?:\.\d+)?)/gi
+    /(?:por|a|de)\s*(\d+(?:\.\d+)?)/gi
   ];
 
   const items: { description: string; qty: number; unitPrice: number }[] = [];
 
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
-      if (pattern.source.startsWith('por')) {
+      if (pattern.source.startsWith('(?:por|a|de)')) {
         items.push({ description: fallbackDescription, qty: 1, unitPrice: Number(match[1]) });
       } else {
         items.push({ description: fallbackDescription, qty: Number(match[1]), unitPrice: Number(match[2]) });

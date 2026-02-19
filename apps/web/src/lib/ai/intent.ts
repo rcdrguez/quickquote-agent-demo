@@ -32,6 +32,21 @@ async function embed(text: string) {
 
 export async function detectIntent(input: string): Promise<{ intent: Intent; backend: 'webgpu' | 'wasm' | 'unknown' }> {
   const lowered = input.toLowerCase();
+
+  if (/(crear|genera|hacer|emitir).*(cotiz|factura|presupuesto)/i.test(lowered) || /(cotiz|factura|presupuesto)/i.test(lowered)) {
+    return {
+      intent: /(lista|mostrar|ver|consulta)/i.test(lowered) ? 'LIST_QUOTES' : 'CREATE_QUOTE',
+      backend: 'unknown'
+    };
+  }
+
+  if (/(crear|registrar|agregar).*(cliente)/i.test(lowered) || /cliente/i.test(lowered)) {
+    return {
+      intent: /(lista|mostrar|ver|consulta)/i.test(lowered) ? 'LIST_CUSTOMERS' : 'CREATE_CUSTOMER',
+      backend: 'unknown'
+    };
+  }
+
   try {
     const inputVec = await embed(input);
     let bestIntent: Intent = 'LIST_CUSTOMERS';
