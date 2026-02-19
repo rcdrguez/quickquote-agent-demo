@@ -49,6 +49,7 @@ export async function initDb() {
     customerId TEXT NOT NULL,
     title TEXT NOT NULL,
     currency TEXT NOT NULL,
+    createdBy TEXT NOT NULL DEFAULT 'human',
     items TEXT NOT NULL,
     subtotal REAL NOT NULL,
     tax REAL NOT NULL,
@@ -56,6 +57,12 @@ export async function initDb() {
     createdAt TEXT NOT NULL,
     FOREIGN KEY (customerId) REFERENCES customers(id)
   )`);
+
+  const quoteColumns = await all<{ name: string }>('PRAGMA table_info(quotes)');
+  const hasCreatedBy = quoteColumns.some((column) => column.name === 'createdBy');
+  if (!hasCreatedBy) {
+    await run(`ALTER TABLE quotes ADD COLUMN createdBy TEXT NOT NULL DEFAULT 'human'`);
+  }
 
   const existingCustomers = await get<{ count: number }>('SELECT COUNT(*) as count FROM customers');
   if (!existingCustomers || existingCustomers.count === 0) {
@@ -77,9 +84,9 @@ export async function initDb() {
     const total = subtotal + tax;
 
     await run(
-      `INSERT INTO quotes (id, customerId, title, currency, items, subtotal, tax, total, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [uuidv4(), c1, 'Cotización inicial logística', 'DOP', JSON.stringify(items), subtotal, tax, total, now]
+      `INSERT INTO quotes (id, customerId, title, currency, createdBy, items, subtotal, tax, total, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uuidv4(), c1, 'Cotización inicial logística', 'DOP', 'human', JSON.stringify(items), subtotal, tax, total, now]
     );
   }
 }

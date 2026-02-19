@@ -11,6 +11,7 @@ export interface Quote {
   customerId: string;
   title: string;
   currency: string;
+  createdBy: 'human' | 'ai_agent';
   items: QuoteItem[];
   subtotal: number;
   tax: number;
@@ -48,19 +49,21 @@ export async function createQuote(input: QuotePayload) {
     customerId: input.customerId,
     title: input.title,
     currency: input.currency || 'DOP',
+    createdBy: input.createdBy || 'human',
     items: input.items,
     ...totals,
     createdAt: new Date().toISOString()
   };
 
   await run(
-    `INSERT INTO quotes (id, customerId, title, currency, items, subtotal, tax, total, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO quotes (id, customerId, title, currency, createdBy, items, subtotal, tax, total, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       quote.id,
       quote.customerId,
       quote.title,
       quote.currency,
+      quote.createdBy,
       JSON.stringify(quote.items),
       quote.subtotal,
       quote.tax,
@@ -84,6 +87,7 @@ export async function createQuoteByCustomerNameOrId(input: McpCreateQuotePayload
     customerId: customer.id,
     title: input.title,
     currency: input.currency,
+    createdBy: input.createdBy,
     items: input.items
   });
 }
