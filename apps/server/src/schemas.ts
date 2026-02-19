@@ -36,7 +36,17 @@ export const mcpGetQuoteSchema = z.object({
   id: z.string().uuid('id inválido')
 });
 
+
+export const mcpValidateQuoteDraftSchema = z.object({
+  customerNameOrId: z.string().optional(),
+  title: z.string().optional(),
+  currency: z.string().optional().default('DOP'),
+  items: z.array(createQuoteItemSchema).optional().default([])
+});
+
 export type CustomerPayload = z.infer<typeof customerPayloadSchema>;
 export type QuotePayload = z.infer<typeof quotePayloadSchema>;
 export type QuoteItem = z.infer<typeof createQuoteItemSchema>;
 export type McpCreateQuotePayload = z.infer<typeof mcpCreateQuoteSchema>;
+
+export type McpValidateQuoteDraftPayload = z.infer<typeof mcpValidateQuoteDraftSchema>;

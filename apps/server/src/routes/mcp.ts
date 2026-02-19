@@ -2,10 +2,10 @@ import { Router } from 'express';
 import { ZodError, z } from 'zod';
 import { createCustomer, listCustomers } from '../services/customers.js';
 import { createQuoteByCustomerNameOrId, getQuote, listQuotes } from '../services/quotes.js';
-import { mcpCreateCustomerSchema, mcpCreateQuoteSchema, mcpGetQuoteSchema } from '../schemas.js';
+import { mcpCreateCustomerSchema, mcpCreateQuoteSchema, mcpGetQuoteSchema, mcpValidateQuoteDraftSchema } from '../schemas.js';
 import { AppError } from '../utils/errors.js';
 
-const LEGACY_TOOL_NAMES = ['create_customer', 'list_customers', 'create_quote', 'list_quotes', 'get_quote'] as const;
+const LEGACY_TOOL_NAMES = ['create_customer', 'list_customers', 'create_quote', 'list_quotes', 'get_quote', 'validate_quote_draft'] as const;
 type LegacyTool = (typeof LEGACY_TOOL_NAMES)[number];
 
 type ToolResult = Awaited<ReturnType<typeof listCustomers>> | Awaited<ReturnType<typeof listQuotes>> | unknown;
@@ -24,6 +24,33 @@ const jsonRpcBodySchema = z.object({
 
 const router = Router();
 
+function validateQuoteDraft(input: Record<string, unknown>) {
+  const payload = mcpValidateQuoteDraftSchema.parse(input);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!payload.customerNameOrId?.trim()) errors.push('Falta el cliente de la cotización.');
+  if (!payload.title?.trim()) warnings.push('No se detectó título; se usará uno automático.');
+  if (!payload.items?.length) errors.push('Debes incluir al menos un item para crear la cotización.');
+
+  for (const item of payload.items || []) {
+    if (item.qty <= 0) errors.push(`Cantidad inválida para item "${item.description}".`);
+    if (item.unitPrice <= 0) warnings.push(`El item "${item.description}" tiene precio 0 o menor.`);
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+    warnings,
+    normalizedDraft: {
+      customerNameOrId: payload.customerNameOrId?.trim(),
+      title: payload.title?.trim() || 'Cotización generada por agente',
+      currency: payload.currency || 'DOP',
+      items: payload.items || []
+    }
+  };
+}
+
 async function executeLegacyTool(tool: LegacyTool, input: Record<string, unknown>): Promise<ToolResult> {
   if (tool === 'create_customer') {
     const payload = mcpCreateCustomerSchema.parse(input);
@@ -41,6 +68,10 @@ async function executeLegacyTool(tool: LegacyTool, input: Record<string, unknown
 
   if (tool === 'list_quotes') {
     return listQuotes();
+  }
+
+  if (tool === 'validate_quote_draft') {
+    return validateQuoteDraft(input);
   }
 
   const payload = mcpGetQuoteSchema.parse(input);
@@ -62,7 +93,7 @@ router.post('/', async (req, res) => {
           id,
           result: {
             protocolVersion: '2024-11-05',
-            serverInfo: { name: 'quickquote-mcp', version: '1.0.0' },
+            serverInfo: { name: 'quickquote-mcp', version: '1.1.0' },
             capabilities: { tools: {} }
           }
         });
@@ -77,6 +108,7 @@ router.post('/', async (req, res) => {
               { name: 'create_customer', description: 'Crea un cliente', inputSchema: { type: 'object', required: ['name'], properties: { name: { type: 'string' }, rnc: { type: 'string' }, email: { type: 'string', format: 'email' }, phone: { type: 'string' } } } },
               { name: 'list_customers', description: 'Lista clientes', inputSchema: { type: 'object', properties: {} } },
               { name: 'create_quote', description: 'Crea una cotización por nombre o id de cliente', inputSchema: { type: 'object', required: ['customerNameOrId', 'title', 'items'], properties: { customerNameOrId: { type: 'string' }, customer: { type: 'object' }, title: { type: 'string' }, currency: { type: 'string' }, createdBy: { type: 'string', enum: ['human', 'ai_agent'] }, items: { type: 'array' } } } },
+              { name: 'validate_quote_draft', description: 'Valida un borrador de cotización antes de crearla', inputSchema: { type: 'object', properties: { customerNameOrId: { type: 'string' }, title: { type: 'string' }, currency: { type: 'string' }, items: { type: 'array' } } } },
               { name: 'list_quotes', description: 'Lista cotizaciones', inputSchema: { type: 'object', properties: {} } },
               { name: 'get_quote', description: 'Obtiene una cotización por id', inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } } }
             ]

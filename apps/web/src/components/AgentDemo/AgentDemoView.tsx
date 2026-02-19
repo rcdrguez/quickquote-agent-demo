@@ -38,6 +38,7 @@ export function AgentDemoView() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
   const silenceTimerRef = useRef<number | null>(null);
 
@@ -155,6 +156,15 @@ export function AgentDemoView() {
     try {
       const result = await buildAgentResult(input);
 
+      if (result.requiresConfirmation && !awaitingConfirmation) {
+        setTrace({ ...result, response: null });
+        setAwaitingConfirmation(true);
+        setError(
+          `La IA detectó esta acción con confianza ${Math.round(result.confidence * 100)}%. Revisa el borrador y pulsa "Ejecutar asistente" de nuevo para confirmar.`
+        );
+        return;
+      }
+
       if (result.tool === 'create_customer' && !(result.payload as any).name) {
         setError('No se puede crear cliente sin nombre. Intenta: "crear cliente María Pérez correo maria@correo.com".');
         setTrace({ ...result, response: null });
@@ -170,8 +180,20 @@ export function AgentDemoView() {
         }
       }
 
+      if (result.tool === 'create_quote') {
+        const validation = await api.callMcp('validate_quote_draft', result.payload);
+        if (!validation.ok) {
+          const allErrors = (validation.errors || []).join(' | ');
+          setError(allErrors || 'La validación del borrador de cotización falló.');
+          setTrace({ ...result, response: validation });
+          setAwaitingConfirmation(false);
+          return;
+        }
+      }
+
       const response = await api.callMcp(result.tool, result.payload);
       setTrace({ ...result, response });
+      setAwaitingConfirmation(false);
       const serverLogs = await api.getLogs();
       setLogs(serverLogs.slice(0, 15));
     } catch (e: any) {
@@ -224,7 +246,10 @@ export function AgentDemoView() {
               className="min-h-48 w-full rounded-xl border border-slate-300 bg-white p-4 text-slate-800 outline-none ring-blue-500 transition placeholder:text-slate-400 focus:ring-2"
               value={input}
               placeholder='Ejemplo: "Crear factura para Ana López por Diseño web, 1 unidad a 15000"'
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setAwaitingConfirmation(false);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Tab' && autocompleteSuggestion) {
                   e.preventDefault();
@@ -255,7 +280,7 @@ export function AgentDemoView() {
               onClick={run}
               disabled={!input.trim() || loading}
             >
-              {loading ? 'Procesando...' : 'Ejecutar asistente'}
+              {loading ? 'Procesando...' : awaitingConfirmation ? 'Confirmar ejecución' : 'Ejecutar asistente'}
             </button>
           </div>
 
@@ -312,10 +337,14 @@ export function AgentDemoView() {
             <div>
               <p className="font-medium">Intent detectado</p>
               <pre>{trace.intent}</pre>
+              <p className="mt-1 text-xs text-slate-500">Confianza: {Math.round((trace.confidence || 0) * 100)}%</p>
             </div>
             <div>
               <p className="font-medium">Tool llamada</p>
               <pre>{trace.tool}</pre>
+              {Array.isArray(trace.missingFields) && trace.missingFields.length > 0 && (
+                <p className="mt-1 text-xs text-amber-600">Campos faltantes: {trace.missingFields.join(', ')}</p>
+              )}
             </div>
             <div>
               <p className="font-medium">Entidades (JSON)</p>

@@ -149,3 +149,7 @@ or
 - Dashboard screenshot: TODO
 - Agent trace screenshot: TODO
 - Quotes detail screenshot: TODO
+
+## AI improvement roadmap
+
+- See `AI_UPGRADE_PLAN.md` for a prioritized plan to significantly improve quote-generation AI quality with zero API-token costs.
