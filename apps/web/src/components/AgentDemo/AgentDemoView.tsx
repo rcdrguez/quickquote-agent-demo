@@ -39,6 +39,7 @@ export function AgentDemoView() {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [showAiInfoModal, setShowAiInfoModal] = useState(false);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
   const silenceTimerRef = useRef<number | null>(null);
 
@@ -238,6 +239,45 @@ export function AgentDemoView() {
         </p>
       </header>
 
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Guía rápida del demo</p>
+            <h3 className="text-lg font-semibold text-blue-950">¿Qué está haciendo la IA aquí?</h3>
+            <p className="max-w-3xl text-sm text-blue-900">
+              Este proyecto muestra un flujo completo de IA aplicada: interpreta tu texto, extrae los datos importantes, valida el borrador y
+              ejecuta una acción real en el backend.
+            </p>
+          </div>
+          <button
+            className="rounded-xl border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            type="button"
+            onClick={() => setShowAiInfoModal(true)}
+          >
+            Ver explicación detallada
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-blue-200 bg-white p-3 text-blue-900">
+            <p className="font-semibold">1) Detección de intención</p>
+            <p>La IA decide si quieres crear cliente, cotización, factura o listar registros.</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-white p-3 text-blue-900">
+            <p className="font-semibold">2) Extracción de entidades</p>
+            <p>Identifica nombre, servicio, cantidad, precio, moneda y datos de contacto.</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-white p-3 text-blue-900">
+            <p className="font-semibold">3) Validación inteligente</p>
+            <p>Revisa campos obligatorios y pide confirmación si detecta ambigüedad.</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-white p-3 text-blue-900">
+            <p className="font-semibold">4) Ejecución con trazabilidad</p>
+            <p>Llama herramientas MCP y muestra payload, respuesta y logs del servidor.</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
           <label className="space-y-2">
@@ -361,6 +401,56 @@ export function AgentDemoView() {
           </div>
         )}
       </div>
+
+      {showAiInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Modal informativo</p>
+                <h3 className="text-xl font-semibold text-slate-900">Cómo funciona este asistente con IA</h3>
+              </div>
+              <button
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                type="button"
+                onClick={() => setShowAiInfoModal(false)}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4 text-sm text-slate-700">
+              <p>
+                Está pensado para que cualquier persona entienda qué ocurre detrás del botón <strong>"Ejecutar asistente"</strong>, sin necesidad
+                de conocer programación.
+              </p>
+
+              <div>
+                <p className="font-semibold text-slate-900">Componentes incorporados</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  <li>Interfaz de lenguaje natural (texto + dictado por voz).</li>
+                  <li>Clasificador de intención para decidir la acción correcta.</li>
+                  <li>Extractor de entidades para convertir texto libre en JSON utilizable.</li>
+                  <li>Reglas de validación y confirmación para evitar errores.</li>
+                  <li>Conector MCP para ejecutar herramientas reales en backend.</li>
+                  <li>Panel de trazabilidad para auditar todo el proceso.</li>
+                </ul>
+              </div>
+
+              <div>
+                <p className="font-semibold text-slate-900">¿Cómo se logra este tipo de solución?</p>
+                <ol className="mt-1 list-decimal space-y-1 pl-5">
+                  <li>Definir claramente qué acciones de negocio quieres automatizar.</li>
+                  <li>Diseñar prompts e intenciones con ejemplos reales del dominio.</li>
+                  <li>Transformar lo que escribe el usuario en un payload estructurado.</li>
+                  <li>Agregar validaciones y pasos de confirmación antes de ejecutar.</li>
+                  <li>Registrar logs y resultados para aprender, mejorar y escalar.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
