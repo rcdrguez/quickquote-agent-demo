@@ -26,9 +26,19 @@ interface Customer {
   name: string;
 }
 
-const formatMoney = (currency: string, amount: number) => `${currency} ${amount.toFixed(2)}`;
+const formatMoney = (currency: string, amount: number) =>
+  new Intl.NumberFormat('es-DO', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount);
 
-const escapePdfText = (value: string) => value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+const sanitizePdfText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[“”«»]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/[^\x20-\x7E]/g, ' ');
+
+const escapePdfText = (value: string) => sanitizePdfText(value).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 
 const pdfText = (x: number, y: number, size: number, value: string) => `BT /F1 ${size} Tf ${x} ${y} Td (${escapePdfText(value)}) Tj ET`;
 
@@ -51,7 +61,7 @@ const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: s
     '0.12 0.24 0.58 rg',
     '40 742 532 34 re f',
     '1 1 1 rg',
-    pdfText(54, 754, 16, 'QUICKQUOTE · COTIZACIÓN PROFESIONAL'),
+    pdfText(54, 754, 16, 'QUICKQUOTE - COTIZACION PROFESIONAL'),
     '0 0 0 rg',
     pdfText(54, baseY, 11, `Documento: ${quote.title}`),
     pdfText(54, baseY - 22, 10, `Cliente: ${customerName}`),
@@ -61,7 +71,7 @@ const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: s
     '0.95 0.96 0.99 rg',
     '40 620 532 24 re f',
     '0.2 0.23 0.3 rg',
-    pdfText(54, 628, 10, 'Descripción'),
+    pdfText(54, 628, 10, 'Descripcion'),
     pdfText(356, 628, 10, 'Cant.'),
     pdfText(418, 628, 10, 'Precio'),
     pdfText(504, 628, 10, 'Total'),
@@ -72,12 +82,12 @@ const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: s
     pdfText(360, 96, 10, `Subtotal: ${quote.subtotal.toFixed(2)}`),
     pdfText(360, 78, 10, `ITBIS (18%): ${quote.tax.toFixed(2)}`),
     pdfText(360, 56, 12, `TOTAL: ${quote.total.toFixed(2)} ${quote.currency}`),
-    pdfText(54, 56, 9, 'Gracias por su confianza. Esta cotización tiene validez de 15 días.')
+    pdfText(54, 56, 9, 'Gracias por su confianza. Esta cotizacion tiene validez de 15 dias.')
   ].join('\n');
 
-  const info = `6 0 obj\n<< /Title (${escapePdfText(`Cotización ${quote.title}`)}) /Author (${escapePdfText(
+  const info = `6 0 obj\n<< /Title (${escapePdfText(`Cotizacion ${quote.title}`)}) /Author (${escapePdfText(
     sourceLabel
-  )}) /Creator (QuickQuote Agent Demo) /Producer (QuickQuote PDF UX Edition) /Subject (Cotización comercial profesional) >>\nendobj`;
+  )}) /Creator (QuickQuote Agent Demo) /Producer (QuickQuote PDF UX Edition) /Subject (Cotizacion comercial profesional) >>\nendobj`;
 
   const objects = [
     '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj',
@@ -163,19 +173,21 @@ export function QuoteDetailView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold">Detalle de cotización</h2>
-          <p className="text-sm text-slate-500">PDF con formato profesional y metadata de trazabilidad.</p>
+          <p className="text-sm text-slate-500">Diseño premium con PDF estable para caracteres especiales.</p>
         </div>
         <button className="rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700" onClick={downloadPdf}>
           Descargar PDF
         </button>
       </header>
 
-      <article className="rounded-2xl bg-white p-6 shadow dark:bg-slate-900">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <p className="text-xs uppercase text-slate-500">Título</p>
-            <p className="font-semibold">{quote.title}</p>
-          </div>
+      <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900">
+        <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-violet-900 p-6 text-white">
+          <p className="text-xs uppercase tracking-[0.24em] text-blue-100">QuickQuote</p>
+          <h3 className="mt-2 text-2xl font-semibold">{quote.title}</h3>
+          <p className="mt-1 text-sm text-blue-100">Documento comercial listo para compartir con el cliente.</p>
+        </div>
+
+        <div className="grid gap-4 p-6 md:grid-cols-2">
           <div>
             <p className="text-xs uppercase text-slate-500">Cliente</p>
             <p className="font-semibold">{customerName}</p>
@@ -183,6 +195,10 @@ export function QuoteDetailView() {
           <div>
             <p className="text-xs uppercase text-slate-500">Fecha</p>
             <p>{new Date(quote.createdAt).toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Moneda</p>
+            <p className="font-semibold">{quote.currency}</p>
           </div>
           <div>
             <p className="text-xs uppercase text-slate-500">Origen</p>
@@ -198,7 +214,7 @@ export function QuoteDetailView() {
           </div>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-xl border">
+        <div className="mx-6 overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <tr>
@@ -221,7 +237,7 @@ export function QuoteDetailView() {
           </table>
         </div>
 
-        <div className="mt-4 ml-auto max-w-sm space-y-2 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800">
+        <div className="m-6 mt-4 ml-auto max-w-sm space-y-2 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-800">
           <div className="flex items-center justify-between">
             <span>Subtotal</span>
             <strong>{formatMoney(quote.currency, quote.subtotal)}</strong>
