@@ -1,278 +1,138 @@
-# quickquote-agent-demo
+# QuickQuote Agent Demo
 
-Local AI. Real Persistence. Zero API Keys.
+QuickQuote Agent Demo is a public monorepo demo of a small SaaS-style quoting system with a lightweight client-side AI agent. The app lets users manage customers, create quotes, and run Spanish natural-language commands that are interpreted in-browser using Transformers.js.
 
-QuickQuote Agent Demo is a full-stack SaaS-style application that demonstrates how to build a lightweight AI agent running entirely in the browser using Transformers.js, without relying on OpenAI, Gemini, or any external AI services.
+## Features
 
-This project combines:
-
-- A modern React + Tailwind dashboard UI
-- A Node.js + Express backend
-- SQLite persistent storage
-- MCP-style tool invocation over HTTP
-- A client-side Local AI agent for intent detection and entity extraction
-- No API keys
-- No external AI providers
-
----
-
-## Project Goal
-
-To demonstrate that you can build a:
-
-- Functional AI-driven agent
-- Persistent full-stack SaaS-style system
-- Clean developer architecture
-- Without calling OpenAI, Gemini, or any paid API
-
-Everything runs locally or on simple hosting like Render and Vercel.
-
----
-
-## What This Demo Shows
-
-- Local AI intent classification in Spanish
-- Slot filling (entity extraction)
-- Deterministic fallback parsing
-- MCP-style structured tool calls
-- RESTful backend
-- SQLite persistence
-- Modern dashboard UI
-- Clean TypeScript codebase
-
----
+- Monorepo with npm workspaces (`apps/web`, `apps/server`)
+- Frontend with Vite + React + TailwindCSS + React Router
+- Backend with Express + SQLite persistence
+- REST API under `/api`
+- MCP-style tools endpoint under `/mcp`
+- Shared business logic for API and MCP routes
+- Zod validation for REST and MCP payloads
+- SQLite auto-init and first-run seed data (2 customers, 1 quote)
+- Agent Demo UI with:
+  - Intent detection
+  - Entity extraction JSON
+  - Final tool payload preview
+  - Step trace + server response
+- Local AI only with `@xenova/transformers` (no API keys, no external AI service)
 
 ## Architecture
 
-Monorepo structure:
+- `apps/server`: single Express service exposing both `/api` and `/mcp`
+- `apps/web`: React SPA deployed separately or run in local dev
+- Persistence: `apps/server/data/quickquote.db`
 
+## Monorepo layout
+
+```text
 /
-apps
-/web        → Frontend (React + Vite + Tailwind)
-/server     → Backend (Express + SQLite + MCP tools)
-package.json
-README.md
+  package.json
+  README.md
+  .gitignore
+  apps/
+    server/
+    web/
+```
 
----
+## Local development
 
-## Frontend (apps/web)
+Requirements:
 
-Stack:
+- Node.js 20+
+- npm 10+
 
-- React
-- Vite
-- TypeScript
-- TailwindCSS
-- Transformers.js (@xenova/transformers)
+Run:
 
-Key Features:
-
-- Sidebar navigation (Clientes, Cotizaciones, Agent Demo)
-- Topbar with "Local AI: ON" indicator
-- Agent Demo chat interface
-- Agent Trace panel
-- Responsive UI
-- Light/Dark theme
-
----
-
-## Backend (apps/server)
-
-Stack:
-
-- Node.js
-- Express
-- TypeScript
-- SQLite
-- Zod validation
-- CORS enabled
-- Seed data
-
----
-
-## REST API
-
-Customers:
-
-- GET /api/customers
-- POST /api/customers
-
-Quotes:
-
-- GET /api/quotes
-- POST /api/quotes
-- GET /api/quotes/:id
-
----
-
-## MCP Tools Endpoint
-
-POST /mcp
-
-Available tools:
-
-- create_customer
-- list_customers
-- create_quote
-- list_quotes
-- get_quote
-
-Example request:
-
-{
-  "tool": "create_customer",
-  "input": {
-    "name": "Juan Pérez",
-    "email": "juan@correo.com"
-  }
-}
-
----
-
-## Data Model
-
-Customer:
-
-- id (uuid)
-- name
-- rnc (optional)
-- email (optional)
-- phone (optional)
-- createdAt
-
-Quote:
-
-- id (uuid)
-- customerId
-- title
-- currency (default DOP)
-- items [{ description, qty, unitPrice }]
-- subtotal
-- tax
-- total
-- createdAt
-
----
-
-## Local AI Design
-
-The AI agent runs entirely in the browser using:
-
-@xenova/transformers
-
-It performs:
-
-1) Intent classification:
-   - CREATE_CUSTOMER
-   - CREATE_QUOTE
-   - LIST_CUSTOMERS
-   - LIST_QUOTES
-
-2) Entity extraction:
-   - Name
-   - Email
-   - RNC
-   - Phone
-   - Quote items
-   - Quantities
-   - Prices
-
-If ML confidence is insufficient for numeric parsing, the system applies deterministic fallback rules using regex patterns such as:
-
-- "2 unidades a 500"
-- "por 15000"
-- "3 x 7500"
-
-No OpenAI.
-No Gemini.
-No external AI.
-No API keys.
-
----
-
-## Example Prompts
-
-- Crea un cliente Juan Pérez, RNC 131-1234567-8, correo juan@correo.com, teléfono 8095551234
-- Crea una cotización para Juan Pérez por Servicio de logística, 2 unidades a 7500
-- Lista los clientes
-- Lista las cotizaciones
-
----
-
-## Running Locally
-
-Install dependencies:
-
+```bash
 npm install
-
-Run development mode:
-
 npm run dev
+```
 
-This will start:
+- Web runs at `http://localhost:5173`
+- Server runs at `http://localhost:8787`
 
-- Frontend (Vite)
-- Backend (Express)
-- SQLite database (auto-created)
-- Seed data inserted automatically
+## Environment variables
 
----
+### Web (`apps/web`)
 
-## Seed Data
+- `VITE_API_URL` (default `http://localhost:8787`)
 
-On first run, the system initializes:
+### Server (`apps/server`)
 
-- 2 customers
-- 1 example quote
-
----
+- `PORT` (default `8787`)
 
 ## Deployment
 
-Backend → Render
+### Render (server)
 
-- Deploy /apps/server
-- Use Node 18+
-- Recommended: persistent disk for SQLite
+- Root directory: `apps/server`
+- Build command: `npm install && npm run build`
+- Start command: `npm run start`
+- Ensure persistent disk if you want SQLite data to survive redeploys.
 
-Frontend → Vercel
+### Vercel or GitHub Pages (web)
 
-- Deploy /apps/web
-- Configure environment variable:
-  VITE_API_URL=https://your-render-url
+- Root directory: `apps/web`
+- Build command: `npm install && npm run build`
+- Output directory: `dist`
+- Configure `VITE_API_URL` to your deployed server URL.
 
----
+## Transformers.js notes (WebGPU and WASM)
 
-## Transformers.js Compatibility Notes
+- The agent uses `@xenova/transformers` in the browser.
+- If WebGPU is available, execution can be faster.
+- If WebGPU is not available, it falls back to WASM. This is slower but still functional.
+- The app always stays fully client-side for AI logic.
 
-The AI runs fully in the browser.
+## API and MCP
 
-Supported backends:
+REST endpoints:
 
-- WebGPU (if available)
-- WASM fallback (default)
+- `GET /api/customers`
+- `POST /api/customers`
+- `PUT /api/customers/:id`
+- `GET /api/quotes`
+- `POST /api/quotes`
+- `GET /api/quotes/:id`
 
-If WebGPU is not available, the system automatically falls back to WASM without breaking functionality.
+MCP endpoint:
 
-Performance depends on the user's device.
+- `POST /mcp`
 
----
+Payload format:
 
-## Why This Project Exists
+```json
+{
+  "tool": "create_customer",
+  "input": {}
+}
+```
 
-Most AI demos depend on expensive APIs and secret keys.
+Supported tools:
 
-This demo proves you can:
+- `create_customer`
+- `list_customers`
+- `create_quote`
+- `list_quotes`
+- `get_quote`
 
-- Build local AI agents
-- Maintain full persistence
-- Expose structured tools (MCP-style)
-- Deliver a professional SaaS UI
+All MCP responses follow:
 
-All without external AI providers.
+```json
+{ "ok": true, "result": {} }
+```
 
----
+or
 
-## License
+```json
+{ "ok": false, "error": { "message": "...", "details": {} } }
+```
 
-MIT
+## Screenshot placeholders
+
+- Dashboard screenshot: TODO
+- Agent trace screenshot: TODO
+- Quotes detail screenshot: TODO
