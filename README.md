@@ -102,14 +102,27 @@ MCP endpoint:
 
 - `POST /mcp`
 
-Payload format:
+JSON-RPC MCP methods supported:
+
+- `initialize`
+- `tools/list`
+- `tools/call`
+
+Example `tools/call` payload:
 
 ```json
 {
-  "tool": "create_customer",
-  "input": {}
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "create_customer",
+    "arguments": {}
+  }
 }
 ```
+
+Legacy payload (`{ tool, input }`) is still accepted for backward compatibility.
 
 Supported tools:
 

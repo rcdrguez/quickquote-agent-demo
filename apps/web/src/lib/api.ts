@@ -13,6 +13,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
+let jsonRpcId = 0;
+
 export const api = {
   getCustomers: () => request<any[]>('/api/customers'),
   createCustomer: (payload: any) => request('/api/customers', { method: 'POST', body: JSON.stringify(payload) }),
@@ -22,5 +24,22 @@ export const api = {
   createQuote: (payload: any) => request('/api/quotes', { method: 'POST', body: JSON.stringify(payload) }),
   getQuote: (id: string) => request<any>(`/api/quotes/${id}`),
   getLogs: () => request<any[]>('/api/logs'),
-  callMcp: (tool: string, input: any) => request('/mcp', { method: 'POST', body: JSON.stringify({ tool, input }) })
+  callMcp: async (tool: string, input: any) => {
+    jsonRpcId += 1;
+    const response = await request<any>('/mcp', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: jsonRpcId,
+        method: 'tools/call',
+        params: { name: tool, arguments: input }
+      })
+    });
+
+    if (response.error) {
+      throw new Error(response.error?.message || 'Error MCP');
+    }
+
+    return response.result?.structuredContent ?? response.result;
+  }
 };
