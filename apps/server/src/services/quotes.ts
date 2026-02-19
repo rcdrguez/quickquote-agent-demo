@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { all, get, run } from '../db.js';
 import type { McpCreateQuotePayload, QuoteItem, QuotePayload } from '../schemas.js';
-import { findCustomerByNameOrId } from './customers.js';
+import { createCustomer, findCustomerByNameOrId } from './customers.js';
 import { AppError } from '../utils/errors.js';
 
 const TAX_RATE = 0.18;
@@ -76,7 +76,17 @@ export async function createQuote(input: QuotePayload) {
 }
 
 export async function createQuoteByCustomerNameOrId(input: McpCreateQuotePayload) {
-  const customer = await findCustomerByNameOrId(input.customerNameOrId);
+  let customer = await findCustomerByNameOrId(input.customerNameOrId);
+
+  if (!customer && input.createdBy === 'ai_agent') {
+    customer = await createCustomer({
+      name: input.customer?.name?.trim() || input.customerNameOrId,
+      email: input.customer?.email,
+      phone: input.customer?.phone,
+      rnc: input.customer?.rnc
+    });
+  }
+
   if (!customer) {
     throw new AppError('Cliente no encontrado para crear la cotización', 404, {
       customerNameOrId: input.customerNameOrId

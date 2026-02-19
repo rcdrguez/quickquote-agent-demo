@@ -22,12 +22,20 @@ export async function buildAgentResult(text: string): Promise<AgentResult & { ba
   }
 
   if (intent === 'CREATE_QUOTE') {
+    const customerPayload = {
+      name: extracted.customer,
+      email: extracted.customerEmail,
+      rnc: extracted.customerRnc,
+      phone: extracted.customerPhone
+    };
+
     return {
       intent,
       extracted,
       tool: 'create_quote',
       payload: {
         customerNameOrId: extracted.customer,
+        customer: customerPayload,
         title: extracted.title,
         currency: 'DOP',
         createdBy: 'ai_agent',

@@ -28,26 +28,63 @@ interface Customer {
 
 const formatMoney = (currency: string, amount: number) => `${currency} ${amount.toFixed(2)}`;
 
-const escapePdfText = (value: string) =>
-  value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+const escapePdfText = (value: string) => value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 
-const buildProfessionalPdf = (lines: string[], metadata: Record<string, string>) => {
-  const content = lines
-    .map((line, index) => `BT /F1 ${index === 0 ? 18 : 11} Tf 50 ${760 - index * 18} Td (${escapePdfText(line)}) Tj ET`)
-    .join('\n');
+const pdfText = (x: number, y: number, size: number, value: string) => `BT /F1 ${size} Tf ${x} ${y} Td (${escapePdfText(value)}) Tj ET`;
 
-  const info = `6 0 obj\n<< /Title (${escapePdfText(metadata.title)}) /Author (${escapePdfText(metadata.author)}) /Creator (${escapePdfText(
-    metadata.creator
-  )}) /Producer (${escapePdfText(metadata.producer)}) /Subject (${escapePdfText(metadata.subject)}) /Keywords (${escapePdfText(
-    metadata.keywords
-  )}) >>\nendobj`;
+const buildProfessionalPdf = (quote: Quote, customerName: string, sourceLabel: string) => {
+  const baseY = 740;
+  const rowStartY = 610;
+
+  const rows = quote.items.flatMap((item, index) => {
+    const y = rowStartY - index * 22;
+    const lineTotal = item.qty * item.unitPrice;
+    return [
+      pdfText(54, y, 10, item.description.slice(0, 44)),
+      pdfText(356, y, 10, String(item.qty)),
+      pdfText(418, y, 10, item.unitPrice.toFixed(2)),
+      pdfText(504, y, 10, lineTotal.toFixed(2))
+    ];
+  });
+
+  const commands = [
+    '0.12 0.24 0.58 rg',
+    '40 742 532 34 re f',
+    '1 1 1 rg',
+    pdfText(54, 754, 16, 'QUICKQUOTE · COTIZACIÓN PROFESIONAL'),
+    '0 0 0 rg',
+    pdfText(54, baseY, 11, `Documento: ${quote.title}`),
+    pdfText(54, baseY - 22, 10, `Cliente: ${customerName}`),
+    pdfText(54, baseY - 40, 10, `Fecha: ${new Date(quote.createdAt).toLocaleString()}`),
+    pdfText(54, baseY - 58, 10, `Canal: ${sourceLabel}`),
+    pdfText(54, baseY - 76, 10, `Moneda: ${quote.currency}`),
+    '0.95 0.96 0.99 rg',
+    '40 620 532 24 re f',
+    '0.2 0.23 0.3 rg',
+    pdfText(54, 628, 10, 'Descripción'),
+    pdfText(356, 628, 10, 'Cant.'),
+    pdfText(418, 628, 10, 'Precio'),
+    pdfText(504, 628, 10, 'Total'),
+    '0 0 0 rg',
+    ...rows,
+    '0.2 0.23 0.3 RG',
+    '40 120 532 0.8 re S',
+    pdfText(360, 96, 10, `Subtotal: ${quote.subtotal.toFixed(2)}`),
+    pdfText(360, 78, 10, `ITBIS (18%): ${quote.tax.toFixed(2)}`),
+    pdfText(360, 56, 12, `TOTAL: ${quote.total.toFixed(2)} ${quote.currency}`),
+    pdfText(54, 56, 9, 'Gracias por su confianza. Esta cotización tiene validez de 15 días.')
+  ].join('\n');
+
+  const info = `6 0 obj\n<< /Title (${escapePdfText(`Cotización ${quote.title}`)}) /Author (${escapePdfText(
+    sourceLabel
+  )}) /Creator (QuickQuote Agent Demo) /Producer (QuickQuote PDF UX Edition) /Subject (Cotización comercial profesional) >>\nendobj`;
 
   const objects = [
     '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj',
     '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj',
     '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj',
     '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj',
-    `5 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj`,
+    `5 0 obj\n<< /Length ${commands.length} >>\nstream\n${commands}\nendstream\nendobj`,
     info
   ];
 
@@ -103,40 +140,7 @@ export function QuoteDetailView() {
   const downloadPdf = () => {
     if (!quote) return;
 
-    const lines = [
-      'COTIZACIÓN PROFESIONAL',
-      `Documento: ${quote.title}`,
-      `Cliente: ${customerName}`,
-      `Fecha de creación: ${new Date(quote.createdAt).toLocaleString()}`,
-      `Moneda: ${quote.currency}`,
-      `Creado por: ${sourceLabel}`,
-      '------------------------------------------------------------',
-      'Descripción                            Cant.   Precio     Total'
-    ];
-
-    quote.items.forEach((item) => {
-      const lineTotal = item.qty * item.unitPrice;
-      lines.push(
-        `${item.description.slice(0, 34).padEnd(34, ' ')} ${item.qty.toString().padStart(4, ' ')} ${item.unitPrice
-          .toFixed(2)
-          .padStart(9, ' ')} ${lineTotal.toFixed(2).padStart(9, ' ')}`
-      );
-    });
-
-    lines.push('------------------------------------------------------------');
-    lines.push(`Subtotal:${quote.subtotal.toFixed(2).padStart(46, ' ')}`);
-    lines.push(`ITBIS (18%):${quote.tax.toFixed(2).padStart(45, ' ')}`);
-    lines.push(`TOTAL:${quote.total.toFixed(2).padStart(49, ' ')}`);
-
-    const pdfContent = buildProfessionalPdf(lines, {
-      title: `Cotización ${quote.title}`,
-      author: sourceLabel,
-      creator: 'QuickQuote Agent Demo',
-      producer: 'QuickQuote PDF Engine',
-      subject: 'Cotización comercial',
-      keywords: `cotizacion,${quote.createdBy === 'ai_agent' ? 'agente-ia' : 'persona'},${quote.currency}`
-    });
-
+    const pdfContent = buildProfessionalPdf(quote, customerName, sourceLabel);
     const blob = new Blob([pdfContent], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
 
