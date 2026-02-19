@@ -25,6 +25,34 @@ const cleanText = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const parseNumber = (value: string) => {
+  const normalized = value.replace(/\s/g, '').replace(/,/g, '.').replace(/[^\d.]/g, '');
+  return Number(normalized);
+};
+
+const normalizeRnc = (value?: string) => {
+  if (!value) return undefined;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length !== 11) return undefined;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 10)}-${digits.slice(10)}`;
+};
+
+const normalizePhone = (value?: string) => {
+  if (!value) return undefined;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return digits.slice(1);
+  }
+  return digits.length >= 10 ? digits.slice(-10) : undefined;
+};
+
+const detectCurrency = (text: string) => {
+  if (/(usd|dolares|dólares|us\$|\$\s*usd)/i.test(text)) return 'USD';
+  if (/(eur|euros?)/i.test(text)) return 'EUR';
+  if (/(dop|rd\$|peso(?:s)?\s*dominicano(?:s)?)/i.test(text)) return 'DOP';
+  return 'DOP';
+};
+
 const normalizeDescription = (value: string) => {
   const cleaned = cleanText(value).replace(/^[,:;\-]+|[,:;\-]+$/g, '').trim();
   if (!cleaned) return 'Servicio';
@@ -56,11 +84,16 @@ const buildTitle = (text: string, parsedItems: { description: string }[]) => {
 };
 
 export function extractEntities(intent: Intent, text: string) {
+  const normalizedText = cleanText(text);
+
   if (intent === 'CREATE_CUSTOMER') {
-    const email = text.match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/)?.[0];
-    const rnc = text.match(/\b\d{3}-\d{7}-\d\b/)?.[0];
-    const phone = text.match(/\b\d{10}\b/)?.[0];
-    const nameMatch = text.match(/cliente\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:,|\sRNC|\scorreo|\steléfono|$)/i);
+    const email = normalizedText.match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/)?.[0];
+    const rnc = normalizeRnc(normalizedText.match(/(?:rnc\s*)?(\d{3}[-\s]?\d{7}[-\s]?\d)/i)?.[1]);
+    const phone = normalizePhone(normalizedText.match(/(?:\+?1[-\s]?)?\(?\d{3}\)?[-\s]?\d{3}[-\s]?\d{4}/)?.[0]);
+    const nameMatch =
+      normalizedText.match(/(?:cliente|empresa)\s+(?:llamad[oa]\s+)?"?([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)"?(?:,|\sRNC|\scorreo|\semail|\steléfono|$)/i) ||
+      normalizedText.match(/(?:crear|registrar|agregar)\s+(?:un\s+)?(?:cliente|empresa)\s+"?([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)"?(?:,|\sRNC|\scorreo|\semail|\steléfono|$)/i);
+
     return {
       name: nameMatch?.[1]?.trim(),
       email,
@@ -70,13 +103,15 @@ export function extractEntities(intent: Intent, text: string) {
   }
 
   if (intent === 'CREATE_QUOTE') {
-    const normalizedText = cleanText(text);
-    const customer = text.match(/(?:para|cliente)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ\s]+?)(?:\spor|\sde|,|$)/i)?.[1]?.trim();
-    const customerEmail = text.match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/)?.[0];
-    const customerRnc = text.match(/\b\d{3}-\d{7}-\d\b/)?.[0];
-    const customerPhone = text.match(/\b\d{10}\b/)?.[0];
+    const customer =
+      normalizedText.match(/(?:para|cliente)\s+"?([A-Za-zÁÉÍÓÚÑáéíóúñ\s0-9]+?)"?(?:\spor|\sde|,|$)/i)?.[1]?.trim() ||
+      normalizedText.match(/cliente\s+#?(\d+)/i)?.[1]?.trim();
+    const customerEmail = normalizedText.match(/[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/)?.[0];
+    const customerRnc = normalizeRnc(normalizedText.match(/(?:rnc\s*)?(\d{3}[-\s]?\d{7}[-\s]?\d)/i)?.[1]);
+    const customerPhone = normalizePhone(normalizedText.match(/(?:\+?1[-\s]?)?\(?\d{3}\)?[-\s]?\d{3}[-\s]?\d{4}/)?.[0]);
     const items = parseItems(normalizedText, 'Servicio');
     const title = buildTitle(normalizedText, items);
+    const currency = detectCurrency(normalizedText);
 
     return {
       customer,
@@ -84,6 +119,7 @@ export function extractEntities(intent: Intent, text: string) {
       customerRnc,
       customerPhone,
       title,
+      currency,
       items
     };
   }
@@ -93,40 +129,40 @@ export function extractEntities(intent: Intent, text: string) {
 
 function parseItems(text: string, fallbackDescription: string) {
   const normalizedFallback = normalizeDescription(fallbackDescription);
-  const workingText = cleanText(text);
+  const workingText = cleanText(text).replace(/\s+y\s+/gi, ', ');
   const directPatterns = [
-    /(\d+)\s*(?:unidades?|uds?|x)\s*(?:de)?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:a|por)\s*(\d+(?:\.\d+)?)(?:,|$)/gi,
-    /([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:x|por)\s*(\d+)\s*(?:unidades?|uds?)(?:\s*(?:a|por)\s*(\d+(?:\.\d+)?))?/gi,
-    /(?:por|de)\s*(\d+(?:\.\d+)?)\s*(?:para\s+(?:un|una))\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]+?)(?:,|$)/gi,
-    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s*(\d+(?:\.\d+)?)(?:,|$)/gi,
-    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s+un\s+precio\s*(?:de\s*)?(\d+(?:\.\d+)?)(?:\s*cada\s*(?:uno|una))?(?:,|$)/gi
+    /(\d+)\s*(?:unidades?|uds?|x)\s*(?:de)?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:a|por)\s*(\d+(?:[\.,]\d+)?)(?:,|$)/gi,
+    /([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s*(?:x|por)\s*(\d+)\s*(?:unidades?|uds?)(?:\s*(?:a|por)\s*(\d+(?:[\.,]\d+)?))?/gi,
+    /(?:por|de)\s*(\d+(?:[\.,]\d+)?)\s*(?:para\s+(?:un|una))\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]+?)(?:,|$)/gi,
+    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s*(\d+(?:[\.,]\d+)?)(?:,|$)/gi,
+    /(\d+)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s-]{3,}?)\s+a\s+un\s+precio\s*(?:de\s*)?(\d+(?:[\.,]\d+)?)(?:\s*cada\s*(?:uno|una))?(?:,|$)/gi
   ];
 
   const directItems: { description: string; qty: number; unitPrice: number }[] = [];
 
   for (const match of workingText.matchAll(directPatterns[0])) {
-    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: Number(match[3]) });
+    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: parseNumber(match[3]) });
   }
 
   for (const match of workingText.matchAll(directPatterns[1])) {
     const description = normalizeDescription(match[1]);
     const qty = Number(match[2]);
-    const unitPrice = Number(match[3] || 0);
+    const unitPrice = parseNumber(match[3] || '0');
     if (unitPrice > 0) {
       directItems.push({ description, qty, unitPrice });
     }
   }
 
   for (const match of workingText.matchAll(directPatterns[2])) {
-    directItems.push({ description: normalizeDescription(match[2]), qty: 1, unitPrice: Number(match[1]) });
+    directItems.push({ description: normalizeDescription(match[2]), qty: 1, unitPrice: parseNumber(match[1]) });
   }
 
   for (const match of workingText.matchAll(directPatterns[3])) {
-    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: Number(match[3]) });
+    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: parseNumber(match[3]) });
   }
 
   for (const match of workingText.matchAll(directPatterns[4])) {
-    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: Number(match[3]) });
+    directItems.push({ description: normalizeDescription(match[2]), qty: Number(match[1]), unitPrice: parseNumber(match[3]) });
   }
 
   if (directItems.length > 0) {
@@ -134,10 +170,10 @@ function parseItems(text: string, fallbackDescription: string) {
   }
 
   const patterns = [
-    /(\d+)\s*(?:unidades?|x)\s*a?\s*(\d+(?:\.\d+)?)/gi,
-    /(\d+)\s*(?:unidades?|x)\s*de\s*(\d+(?:\.\d+)?)/gi,
-    /qty\s*(\d+)\s*precio\s*(\d+(?:\.\d+)?)/gi,
-    /(?:por|a|de)\s*(\d+(?:\.\d+)?)/gi
+    /(\d+)\s*(?:unidades?|x)\s*a?\s*(\d+(?:[\.,]\d+)?)/gi,
+    /(\d+)\s*(?:unidades?|x)\s*de\s*(\d+(?:[\.,]\d+)?)/gi,
+    /qty\s*(\d+)\s*precio\s*(\d+(?:[\.,]\d+)?)/gi,
+    /(?:por|a|de)\s*(\d+(?:[\.,]\d+)?)/gi
   ];
 
   const items: { description: string; qty: number; unitPrice: number }[] = [];
@@ -145,9 +181,9 @@ function parseItems(text: string, fallbackDescription: string) {
   for (const pattern of patterns) {
     for (const match of workingText.matchAll(pattern)) {
       if (pattern.source.startsWith('(?:por|a|de)')) {
-        items.push({ description: normalizedFallback, qty: 1, unitPrice: Number(match[1]) });
+        items.push({ description: normalizedFallback, qty: 1, unitPrice: parseNumber(match[1]) });
       } else {
-        items.push({ description: normalizedFallback, qty: Number(match[1]), unitPrice: Number(match[2]) });
+        items.push({ description: normalizedFallback, qty: Number(match[1]), unitPrice: parseNumber(match[2]) });
       }
     }
   }

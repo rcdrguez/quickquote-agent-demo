@@ -37,7 +37,7 @@ export async function buildAgentResult(text: string): Promise<AgentResult & { ba
         customerNameOrId: extracted.customer,
         customer: customerPayload,
         title: extracted.title,
-        currency: 'DOP',
+        currency: extracted.currency || 'DOP',
         createdBy: 'ai_agent',
         items: extracted.items
       },
