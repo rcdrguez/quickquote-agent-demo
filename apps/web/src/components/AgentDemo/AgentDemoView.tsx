@@ -70,75 +70,81 @@ export function AgentDemoView() {
   }, []);
 
   return (
-    <section className="grid gap-4 xl:grid-cols-3">
-      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-2">
-        <h2 className="text-2xl font-semibold">Asistente de cotizaciones</h2>
-        <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
-          Describe tu solicitud en lenguaje natural. El editor ahora te sugiere autocompletado inteligente para ayudar a construir prompts
-          claros y rápidos.
+    <section className="space-y-6">
+      <header className="rounded-3xl border border-violet-200 bg-gradient-to-r from-violet-600 to-blue-600 p-6 text-white shadow-lg">
+        <h2 className="text-3xl font-semibold">Asistente de cotizaciones</h2>
+        <p className="mt-2 max-w-3xl text-sm text-violet-100">
+          Escribe en lenguaje natural y ejecuta acciones reales. El sistema interpreta intención, extrae entidades y llama la
+          herramienta adecuada automáticamente.
         </p>
-        <textarea
-          className="min-h-40 w-full rounded-lg border border-slate-300 bg-white/70 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900"
-          value={input}
-          placeholder='Ejemplo: "Crear factura para Ana López por Diseño web, 1 unidad a 15000"'
-          onChange={(e) => setInput(e.target.value)}
-        />
-        <div className="rounded-lg border border-dashed border-blue-200 bg-blue-50/60 p-3 dark:border-blue-900 dark:bg-blue-950/20">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-200">Autocompletado sugerido</p>
+      </header>
+
+      <div className="grid gap-5 xl:grid-cols-3">
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-700">¿Qué quieres hacer?</span>
+            <textarea
+              className="min-h-48 w-full rounded-xl border border-slate-300 bg-white p-4 text-slate-800 outline-none ring-blue-500 transition placeholder:text-slate-400 focus:ring-2"
+              value={input}
+              placeholder='Ejemplo: "Crear factura para Ana López por Diseño web, 1 unidad a 15000"'
+              onChange={(e) => setInput(e.target.value)}
+            />
+          </label>
+
+          <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/70 p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-blue-700">Autocompletado sugerido</p>
+            <div className="flex flex-wrap gap-2">
+              {filteredSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  className="rounded-full border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                  onClick={() => setInput(suggestion)}
+                  type="button"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
-            {filteredSuggestions.map((suggestion) => (
-              <button
-                key={suggestion}
-                className="rounded-full border border-blue-300 bg-white px-3 py-1 text-xs text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-200"
-                onClick={() => setInput(suggestion)}
-                type="button"
-              >
-                {suggestion}
+            <button className="rounded-xl border border-slate-300 px-4 py-2" onClick={() => setInput(examples.join('\n'))}>
+              Cargar ejemplos
+            </button>
+            <button
+              className="rounded-xl bg-blue-600 px-4 py-2 text-white disabled:opacity-70"
+              onClick={run}
+              disabled={!input.trim() || loading}
+            >
+              {loading ? 'Procesando...' : 'Ejecutar asistente'}
+            </button>
+          </div>
+
+          <div className="grid gap-2 text-xs text-slate-600">
+            {examples.map((example) => (
+              <button key={example} className="rounded-lg border border-slate-200 p-2 text-left hover:bg-slate-50" onClick={() => setInput(example)}>
+                {example}
               </button>
             ))}
           </div>
+          {error && <p className="rounded-lg bg-red-50 p-2.5 text-sm text-red-700">{error}</p>}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button className="rounded-lg border px-3 py-2" onClick={() => setInput(examples.join('\n'))}>
-            Cargar ejemplos
-          </button>
-          <button
-            className="rounded-lg bg-blue-600 px-3 py-2 text-white disabled:opacity-70"
-            onClick={run}
-            disabled={!input.trim() || loading}
-          >
-            {loading ? 'Procesando...' : 'Ejecutar asistente'}
-          </button>
-        </div>
-        <div className="grid gap-2 text-xs text-slate-600 dark:text-slate-300">
-          {examples.map((example) => (
-            <button
-              key={example}
-              className="rounded border border-dashed p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
-              onClick={() => setInput(example)}
-            >
-              {example}
-            </button>
-          ))}
-        </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-      </div>
-
-      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-lg font-semibold">Logs del servidor</h3>
-        <p className="text-xs text-slate-500">Últimos eventos para entender qué ejecutó el backend.</p>
-        <div className="max-h-96 space-y-2 overflow-auto rounded bg-slate-950 p-3 font-mono text-xs text-green-300">
-          {logs.length === 0 && <p>No hay logs todavía.</p>}
-          {logs.map((log, idx) => (
-            <p key={`${log.timestamp}-${idx}`}>
-              [{new Date(log.timestamp).toLocaleTimeString()}] {log.level.toUpperCase()} {log.event}
-            </p>
-          ))}
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="text-lg font-semibold">Logs del servidor</h3>
+          <p className="text-xs text-slate-500">Últimos eventos para entender qué ejecutó el backend.</p>
+          <div className="max-h-96 space-y-2 overflow-auto rounded-xl bg-slate-950 p-3 font-mono text-xs text-green-300">
+            {logs.length === 0 && <p>No hay logs todavía.</p>}
+            {logs.map((log, idx) => (
+              <p key={`${log.timestamp}-${idx}`}>
+                [{new Date(log.timestamp).toLocaleTimeString()}] {log.level.toUpperCase()} {log.event}
+              </p>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-3">
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-lg font-semibold">Trazabilidad del agente</h3>
         {!trace && <p className="text-sm text-slate-500">Ejecuta una instrucción para ver el resultado.</p>}
         {trace && (
@@ -153,15 +159,15 @@ export function AgentDemoView() {
             </div>
             <div>
               <p className="font-medium">Entidades (JSON)</p>
-              <pre className="overflow-auto rounded bg-slate-100 p-2 dark:bg-slate-800">{JSON.stringify(trace.extracted, null, 2)}</pre>
+              <pre className="overflow-auto rounded bg-slate-100 p-2">{JSON.stringify(trace.extracted, null, 2)}</pre>
             </div>
             <div>
               <p className="font-medium">Payload final</p>
-              <pre className="overflow-auto rounded bg-slate-100 p-2 dark:bg-slate-800">{JSON.stringify(trace.payload, null, 2)}</pre>
+              <pre className="overflow-auto rounded bg-slate-100 p-2">{JSON.stringify(trace.payload, null, 2)}</pre>
             </div>
             <div className="md:col-span-2">
               <p className="font-medium">Respuesta del servidor</p>
-              <pre className="overflow-auto rounded bg-slate-100 p-2 dark:bg-slate-800">{JSON.stringify(trace.response, null, 2)}</pre>
+              <pre className="overflow-auto rounded bg-slate-100 p-2">{JSON.stringify(trace.response, null, 2)}</pre>
             </div>
           </div>
         )}
