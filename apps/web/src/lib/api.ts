@@ -16,9 +16,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
+async function pingServer(timeoutMs = 8000): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${API_URL}/health`, { signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 let jsonRpcId = 0;
 
 export const api = {
+  pingServer,
   getCustomers: () => request<any[]>('/api/customers'),
   createCustomer: (payload: any) => request('/api/customers', { method: 'POST', body: JSON.stringify(payload) }),
   updateCustomer: (id: string, payload: any) =>
